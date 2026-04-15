@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 const SaisieApp = dynamic(() => import('./SaisieApp'), { ssr: false })
+const AdminClasses = dynamic(() => import('./AdminClasses'), { ssr: false })
 
 // Données de démonstration (remplacées progressivement par les APIs)
 const SEED = {
@@ -388,7 +389,7 @@ function getNavItems(role: string) {
     admin: [
       {id:"home",icon:"📊",label:"Tableau de bord"},
       {id:"eleves",icon:"👤",label:"Élèves"},
-      {id:"classes",icon:"🏛",label:"Classes"},
+      {id:"classes",icon:"🏛",label:"Classes & Profs"},
       {id:"discipline",icon:"⚠️",label:"Discipline"},
     ],
     professeur: [
@@ -444,21 +445,7 @@ export default function MainApp({ initialUser }: { initialUser: any }) {
     if (page === "saisie_notes") return <SaisieApp />
     if (page === "absences") return <SaisieApp />
     if (page === "sanctions") return <SanctionsPageComp {...props}/>
-    if (page === "classes") return (
-      <div>
-        <PageTitle>Classes</PageTitle>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:16}}>
-          {data.classes.map((cl:any)=>(
-            <Card key={cl.id}>
-              <h3 style={{fontSize:18,fontWeight:700,marginBottom:4}}>{cl.nom}</h3>
-              <p style={{color:"#666",fontSize:13,marginBottom:12}}>Niveau {cl.niveau}</p>
-              <p style={{fontSize:24,fontWeight:700,color:"#2563eb",margin:0}}>{data.eleves.filter((e:any)=>e.classe===cl.id).length}</p>
-              <p style={{fontSize:12,color:"#888"}}>élèves inscrits</p>
-            </Card>
-          ))}
-        </div>
-      </div>
-    )
+    if (page === "classes") return <AdminClasses />
     if (page === "discipline") return (
       <div>
         <PageTitle>Discipline</PageTitle>
