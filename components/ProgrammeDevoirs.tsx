@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useState, useMemo } from 'react'
@@ -283,7 +282,7 @@ export default function ProgrammeDevoirs({ role="eleve", classeEleve="" }: { rol
   const toggleNiveau = (n:string)=>{
     const cls = TOUTES_CLASSES.filter(c=>c.startsWith(n))
     const allOn = cls.every(c=>selectedClasses.includes(c))
-    setSelectedClasses(prev=> allOn ? prev.filter(c=>!cls.includes(c)) : [...new Set([...prev,...cls])])
+    setSelectedClasses(prev=>{ if(allOn) return prev.filter(c=>!cls.includes(c)); return prev.concat(cls.filter(c=>!prev.includes(c))); })
   }
 
   // Devoirs à venir dans 3j (pour alertes)
