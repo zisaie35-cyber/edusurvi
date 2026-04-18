@@ -127,8 +127,41 @@ export default function LoginPage() {
           {loading ? 'Connexion...' : 'Se connecter'}
         </button>
 
+        {/* Espace parents */}
+        <div style={{ marginTop: 16, borderTop: '1px solid #f0f0f0', paddingTop: 16 }}>
+          <a
+            href="/parents"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 10,
+              padding: '11px 16px',
+              background: '#f0fdf4',
+              border: '1px solid #86efac',
+              borderRadius: 10,
+              textDecoration: 'none',
+              color: '#15803d',
+              fontSize: 14,
+              fontWeight: 600,
+              transition: 'background .15s',
+            }}
+          >
+            <span style={{ fontSize: 20 }}>👨‍👩‍👧</span>
+            <div>
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#15803d' }}>
+                Espace Parents
+              </p>
+              <p style={{ margin: 0, fontSize: 11, color: '#16a34a', fontWeight: 400 }}>
+                Accéder avec votre code à 6 chiffres
+              </p>
+            </div>
+            <span style={{ marginLeft: 'auto', fontSize: 16, color: '#16a34a' }}>→</span>
+          </a>
+        </div>
+
         {/* Comptes démo */}
-        <div style={{ marginTop: 20, borderTop: '1px solid #f0f0f0', paddingTop: 16 }}>
+        <div style={{ marginTop: 16, borderTop: '1px solid #f0f0f0', paddingTop: 14 }}>
           <p style={{ fontSize: 12, color: '#888', marginBottom: 10, textAlign: 'center' }}>
             Comptes de démonstration
           </p>
