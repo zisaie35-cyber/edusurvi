@@ -103,7 +103,7 @@ function Toast({ msg, type, onClose }: any) {
 }
 
 // ─── FORMULAIRE SAISIE NOTES ─────────────────────────────────────────────────
-function SaisieNotesForm({ onSave }: { onSave: (notes: Note[]) => void }) {
+function SaisieNotesForm({ onSave }: { onSave: (notes: Note[]) => void | Promise<void> }) {
   const [classe, setClasse] = useState("3ème A")
   const [matiereId, setMatiereId] = useState(1)
   const [trimestre, setTrimestre] = useState(1)
@@ -329,7 +329,7 @@ function SaisieNotesForm({ onSave }: { onSave: (notes: Note[]) => void }) {
 }
 
 // ─── FORMULAIRE ABSENCES ──────────────────────────────────────────────────────
-function SaisieAbsencesForm({ onSave }: { onSave: (a: Absence) => void }) {
+function SaisieAbsencesForm({ onSave }: { onSave: (a: Absence) => void | Promise<void> }) {
   const [form, setForm] = useState<Absence>({
     eleveId: 0,
     dateDebut: new Date().toISOString().split("T")[0],
@@ -456,7 +456,7 @@ function SaisieAbsencesForm({ onSave }: { onSave: (a: Absence) => void }) {
 }
 
 // ─── FORMULAIRE RETARDS ───────────────────────────────────────────────────────
-function SaisieRetardsForm({ onSave }: { onSave: (r: Retard) => void }) {
+function SaisieRetardsForm({ onSave }: { onSave: (r: Retard) => void | Promise<void> }) {
   const [form, setForm] = useState<Retard>({
     eleveId: 0,
     date: new Date().toISOString().split("T")[0],
@@ -682,23 +682,104 @@ export default function SaisieApp() {
     setTimeout(() => setToast(null), 3000)
   }
 
-  const handleSaveNotes = (newNotes: Note[]) => {
+  const getUser = () => {
+    if (typeof window === 'undefined') return null
+    try { return JSON.parse(localStorage.getItem('user') || '{}') } catch { return null }
+  }
+
+  const addPoints = async (action: string, description: string, ptsKey: string, defaultPts: number) => {
+    const user = getUser()
+    if (!user?.id) return
+    try {
+      const cfg = await fetch('/api/points?type=config').then(r => r.json())
+      const pts = cfg?.data?.[ptsKey] || defaultPts
+      await fetch('/api/points', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: String(user.id),
+          userNom: user.nom,
+          userPrenom: user.prenom,
+          userRole: user.role,
+          action,
+          description,
+          points: pts,
+          annee: '2024-2025',
+        }),
+      })
+      return { pts, cfg: cfg?.data }
+    } catch { return null }
+  }
+
+  const handleSaveNotes = async (newNotes: Note[]) => {
     setNotes(prev => [...newNotes, ...prev])
     showToast(`✅ ${newNotes.length} note(s) enregistrée(s) avec succès !`)
+
+    const user = getUser()
+    if (user?.id) {
+      try {
+        const cfg = await fetch('/api/points?type=config').then(r => r.json())
+        const ptsParNote = cfg?.data?.pts_note || 10
+        const ptsTotal = newNotes.length * ptsParNote
+
+        // Points pour les notes saisies
+        await fetch('/api/points', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: String(user.id),
+            userNom: user.nom,
+            userPrenom: user.prenom,
+            userRole: user.role,
+            action: 'note',
+            description: `${newNotes.length} note(s) saisie(s) — ${typeEval} T${trimestre}`,
+            points: ptsTotal,
+            annee: '2024-2025',
+          }),
+        })
+
+        // Bonus si toute la classe est notée
+        const elevesClasse = ELEVES.filter(e => e.classe === classe)
+        const toutesNotees = elevesClasse.every(e =>
+          newNotes.some(n => n.eleveId === e.id) ||
+          notes.some(n => n.eleveId === e.id && n.matiereId === matiereId && n.trimestre === trimestre)
+        )
+        if (toutesNotees) {
+          const ptsBonus = cfg?.data?.pts_classe_complete || 100
+          await fetch('/api/points', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: String(user.id),
+              userNom: user.nom,
+              userPrenom: user.prenom,
+              userRole: user.role,
+              action: 'classe_complete',
+              description: `Bonus — Classe ${classe} 100% notée T${trimestre}`,
+              points: ptsBonus,
+              annee: '2024-2025',
+            }),
+          })
+          showToast(`🎉 Bonus +${ptsBonus} pts — Classe complète !`)
+        }
+      } catch {}
+    }
     setTab("historique")
   }
 
-  const handleSaveAbsence = (a: Absence) => {
+  const handleSaveAbsence = async (a: Absence) => {
     setAbsences(prev => [a, ...prev])
     const el = ELEVES.find(e => e.id === a.eleveId)
     showToast(`✅ Absence de ${el?.prenom} ${el?.nom} enregistrée`)
+    await addPoints('absence', `Absence enregistrée — ${el?.prenom} ${el?.nom}`, 'pts_absence', 15)
     setTab("historique")
   }
 
-  const handleSaveRetard = (r: Retard) => {
+  const handleSaveRetard = async (r: Retard) => {
     setRetards(prev => [r, ...prev])
     const el = ELEVES.find(e => e.id === r.eleveId)
     showToast(`✅ Retard de ${el?.prenom} ${el?.nom} enregistré`)
+    await addPoints('retard', `Retard enregistré — ${el?.prenom} ${el?.nom}`, 'pts_retard', 10)
     setTab("historique")
   }
 
