@@ -739,7 +739,7 @@ export default function SaisieApp() {
         })
 
         // Bonus si toute la classe est notée
-        const elevesClasse = ELEVES.filter(e => e.classe === classe)
+        const elevesClasse = ELEVES.filter(e => e.classe === (meta?.classe || ''))
         const toutesNotees = elevesClasse.every(e =>
           newNotes.some(n => n.eleveId === e.id) ||
           notes.some(n => n.eleveId === e.id && n.matiereId === (meta?.matiereId || 0) && n.trimestre === (meta?.trimestre || 0))
