@@ -103,7 +103,7 @@ function Toast({ msg, type, onClose }: any) {
 }
 
 // ─── FORMULAIRE SAISIE NOTES ─────────────────────────────────────────────────
-function SaisieNotesForm({ onSave }: { onSave: (notes: Note[]) => void | Promise<void> }) {
+function SaisieNotesForm({ onSave }: { onSave: (notes: Note[], meta: { typeEval: string, trimestre: number, classe: string, matiereId: number }) => void | Promise<void> }) {
   const [classe, setClasse] = useState("3ème A")
   const [matiereId, setMatiereId] = useState(1)
   const [trimestre, setTrimestre] = useState(1)
@@ -113,7 +113,7 @@ function SaisieNotesForm({ onSave }: { onSave: (notes: Note[]) => void | Promise
   const [showComment, setShowComment] = useState<number|null>(null)
   const [errors, setErrors] = useState<Record<number,string>>({})
 
-  const elevesClasse = ELEVES.filter(e => e.classe === classe)
+  const elevesClasse = ELEVES.filter(e => e.classe === (meta?.classe || ''))
   const matiere = MATIERES.find(m => m.id === matiereId)
 
   const validateNote = (val: string) => {
@@ -150,7 +150,7 @@ function SaisieNotesForm({ onSave }: { onSave: (notes: Note[]) => void | Promise
         })
       }
     }
-    onSave(notes)
+    onSave(notes, { typeEval, trimestre, classe, matiereId })
     setValeurs({})
     setCommentaires({})
   }
@@ -711,7 +711,7 @@ export default function SaisieApp() {
     } catch { return null }
   }
 
-  const handleSaveNotes = async (newNotes: Note[]) => {
+  const handleSaveNotes = async (newNotes: Note[], meta?: { typeEval: string, trimestre: number, classe: string, matiereId: number }) => {
     setNotes(prev => [...newNotes, ...prev])
     showToast(`✅ ${newNotes.length} note(s) enregistrée(s) avec succès !`)
 
@@ -732,17 +732,17 @@ export default function SaisieApp() {
             userPrenom: user.prenom,
             userRole: user.role,
             action: 'note',
-            description: `${newNotes.length} note(s) saisie(s) — ${typeEval} T${trimestre}`,
+            description: `${newNotes.length} note(s) saisie(s) — ${meta?.typeEval || ''} T${meta?.trimestre || ''}`,
             points: ptsTotal,
             annee: '2024-2025',
           }),
         })
 
         // Bonus si toute la classe est notée
-        const elevesClasse = ELEVES.filter(e => e.classe === classe)
+        const elevesClasse = ELEVES.filter(e => e.classe === (meta?.classe || ''))
         const toutesNotees = elevesClasse.every(e =>
           newNotes.some(n => n.eleveId === e.id) ||
-          notes.some(n => n.eleveId === e.id && n.matiereId === matiereId && n.trimestre === trimestre)
+          notes.some(n => n.eleveId === e.id && n.matiereId === (meta?.matiereId || 0) && n.trimestre === (meta?.trimestre || 0))
         )
         if (toutesNotees) {
           const ptsBonus = cfg?.data?.pts_classe_complete || 100
@@ -755,7 +755,7 @@ export default function SaisieApp() {
               userPrenom: user.prenom,
               userRole: user.role,
               action: 'classe_complete',
-              description: `Bonus — Classe ${classe} 100% notée T${trimestre}`,
+              description: `Bonus — Classe ${meta?.classe || ''} 100% notée T${meta?.trimestre || ''}`,
               points: ptsBonus,
               annee: '2024-2025',
             }),
