@@ -11,6 +11,8 @@ const SaisieApp = dynamic(() => import('./SaisieApp'), { ssr: false })
 const AdminClasses = dynamic(() => import('./AdminClasses'), { ssr: false })
 const ProgrammeDevoirs = dynamic(() => import('./ProgrammeDevoirs'), { ssr: false })
 const AdminCodes = dynamic(() => import('./ParentAccess').then(m => ({ default: m.AdminCodes })), { ssr: false })
+const PointsDashboard = dynamic(() => import('./PointsModule').then(m => ({ default: m.PointsDashboard })), { ssr: false })
+const AdminPoints = dynamic(() => import('./PointsModule').then(m => ({ default: m.AdminPoints })), { ssr: false })
 
 // Données de démonstration (remplacées progressivement par les APIs)
 const SEED = {
@@ -389,24 +391,27 @@ function EleveHome({ session, data }: any) {
 function getNavItems(role: string) {
   const all: Record<string, any[]> = {
     admin: [
-      {id:"home",         icon:"📊", label:"Tableau de bord"},
-      {id:"eleves",       icon:"👤", label:"Élèves"},
-      {id:"classes",      icon:"🏛", label:"Classes & Profs"},
-      {id:"devoirs",      icon:"📅", label:"Programme devoirs"},
-      {id:"discipline",   icon:"⚠️", label:"Discipline"},
-      {id:"codes_parents",icon:"🔑", label:"Codes parents"},
+      {id:"home",          icon:"📊", label:"Tableau de bord"},
+      {id:"eleves",        icon:"👤", label:"Élèves"},
+      {id:"classes",       icon:"🏛", label:"Classes & Profs"},
+      {id:"devoirs",       icon:"📅", label:"Programme devoirs"},
+      {id:"discipline",    icon:"⚠️", label:"Discipline"},
+      {id:"codes_parents", icon:"🔑", label:"Codes parents"},
+      {id:"admin_points",  icon:"🏆", label:"Points & Récompenses"},
     ],
     professeur: [
-      {id:"home",         icon:"📊", label:"Tableau de bord"},
-      {id:"saisie_notes", icon:"📝", label:"Saisie des notes"},
-      {id:"devoirs",      icon:"📅", label:"Programme devoirs"},
-      {id:"eleves",       icon:"👤", label:"Mes élèves"},
+      {id:"home",          icon:"📊", label:"Tableau de bord"},
+      {id:"saisie_notes",  icon:"📝", label:"Saisie des notes"},
+      {id:"devoirs",       icon:"📅", label:"Programme devoirs"},
+      {id:"eleves",        icon:"👤", label:"Mes élèves"},
+      {id:"mes_points",    icon:"🏆", label:"Mes points"},
     ],
     surveillant: [
-      {id:"home",         icon:"📊", label:"Tableau de bord"},
-      {id:"absences",     icon:"📅", label:"Absences / Retards"},
-      {id:"eleves",       icon:"👤", label:"Élèves"},
-      {id:"sanctions",    icon:"⚠️", label:"Sanctions"},
+      {id:"home",          icon:"📊", label:"Tableau de bord"},
+      {id:"absences",      icon:"📅", label:"Absences / Retards"},
+      {id:"eleves",        icon:"👤", label:"Élèves"},
+      {id:"sanctions",     icon:"⚠️", label:"Sanctions"},
+      {id:"mes_points",    icon:"🏆", label:"Mes points"},
     ],
     eleve: [
       {id:"home",         icon:"📊", label:"Mon espace"},
@@ -453,6 +458,8 @@ export default function MainApp({ initialUser }: { initialUser: any }) {
     if (page === "absences") return <SaisieApp />
     if (page === "devoirs") return <ProgrammeDevoirs role={session.role} classeEleve={session.role==="eleve" ? "3e A" : ""} />
     if (page === "codes_parents") return <AdminCodes />
+    if (page === "mes_points") return <PointsDashboard session={session} />
+    if (page === "admin_points") return <AdminPoints />
     if (page === "mon_assiduite") return <div style={{padding:24,textAlign:"center",color:"#888"}}><p style={{fontSize:32}}>⏰</p><p>Assiduité — disponible prochainement</p></div>
     if (page === "sanctions") return <SanctionsPageComp {...props}/>
     if (page === "classes") return <AdminClasses />
