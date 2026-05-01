@@ -113,7 +113,7 @@ function SaisieNotesForm({ onSave }: { onSave: (notes: Note[], meta: { typeEval:
   const [showComment, setShowComment] = useState<number|null>(null)
   const [errors, setErrors] = useState<Record<number,string>>({})
 
-  const elevesClasse = ELEVES.filter(e => e.classe === (meta?.classe || ''))
+  const elevesClasse = ELEVES.filter(e => e.classe === classe)
   const matiere = MATIERES.find(m => m.id === matiereId)
 
   const validateNote = (val: string) => {
@@ -739,7 +739,7 @@ export default function SaisieApp() {
         })
 
         // Bonus si toute la classe est notée
-        const elevesClasse = ELEVES.filter(e => e.classe === (meta?.classe || ''))
+        const elevesClasse = ELEVES.filter(e => e.classe === classe)
         const toutesNotees = elevesClasse.every(e =>
           newNotes.some(n => n.eleveId === e.id) ||
           notes.some(n => n.eleveId === e.id && n.matiereId === (meta?.matiereId || 0) && n.trimestre === (meta?.trimestre || 0))
