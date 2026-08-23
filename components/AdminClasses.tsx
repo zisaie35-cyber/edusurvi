@@ -5,29 +5,11 @@ import { authFetch } from '@/lib/apiClient'
 
 interface Classe { id:string; nom:string; niveau:string }
 interface Eleve { id:string; nom:string; prenom:string; classeId:string|null; matricule:string; dateNaissance:string; email:string }
-interface Professeur { id:number; nom:string; prenom:string; email:string; matieres:number[]; classes:string[] }
-interface Matiere { id:number; nom:string; coef:number; couleur:string }
-
-const MATIERES_FIXED:Matiere[] = [
-  {id:1,nom:"Mathématiques",coef:3,couleur:"#2563eb"},
-  {id:2,nom:"Français",coef:3,couleur:"#7c3aed"},
-  {id:3,nom:"SVT",coef:2,couleur:"#059669"},
-  {id:4,nom:"Histoire-Géo",coef:2,couleur:"#d97706"},
-  {id:5,nom:"Physique-Chimie",coef:2,couleur:"#dc2626"},
-  {id:6,nom:"Anglais",coef:2,couleur:"#0891b2"},
-]
+interface Professeur { id:string; nom:string; prenom:string; email:string; actif:boolean; matieres:string[]; classes:string[]; password?:string }
+interface Matiere { id:string; nom:string; coefficient:number; couleur:string }
 
 const NIVEAUX = ["6ème","5ème","4ème","3ème","2nde","1ère","Terminale"]
 const AV = ["#2563eb","#7c3aed","#059669","#d97706","#dc2626","#0891b2","#0e7490","#be185d"]
-
-function useLS<T>(key:string, init:T):[T,(v:T)=>void] {
-  const [s,ss] = useState<T>(()=>{
-    if(typeof window==='undefined') return init
-    try{ const x=localStorage.getItem('edu_'+key); return x?JSON.parse(x):init }catch{return init}
-  })
-  const set=(v:T)=>{ss(v);if(typeof window!=='undefined')localStorage.setItem('edu_'+key,JSON.stringify(v))}
-  return [s,set]
-}
 
 function hashStr(s:string){let h=0;for(let i=0;i<s.length;i++){h=(h*31+s.charCodeAt(i))|0}return Math.abs(h)}
 
@@ -85,16 +67,12 @@ const BD:React.CSSProperties={padding:"6px 12px",background:"#fef2f2",color:"#dc
 const TH:React.CSSProperties={textAlign:"left",padding:"10px 14px",fontSize:12,fontWeight:600,color:"#888",borderBottom:"1px solid #eee"}
 const TD:React.CSSProperties={padding:"11px 14px",verticalAlign:"middle"}
 
-const nid=(arr:{id:number}[])=>Math.max(0,...arr.map(x=>x.id))+1
-
 export default function AdminClasses(){
   const [classes,setClasses]=useState<Classe[]>([])
   const [eleves,setEleves]=useState<Eleve[]>([])
+  const [matieres,setMatieres]=useState<Matiere[]>([])
+  const [profs,setProfs]=useState<Professeur[]>([])
   const [loading,setLoading]=useState(true)
-  const [profs,setProfs]=useLS<Professeur[]>('profs',[
-    {id:1,nom:"Ouédraogo",prenom:"Safi",email:"prof1@ecole.bf",matieres:[1,2],classes:[]},
-    {id:2,nom:"Sawadogo",prenom:"Ismaël",email:"prof2@ecole.bf",matieres:[3,4],classes:[]},
-  ])
 
   const [sel,setSel]=useState<string|null>(null)
   const [view,setView]=useState<"eleves"|"profs">("eleves")
@@ -115,10 +93,12 @@ export default function AdminClasses(){
   const charger=async()=>{
     setLoading(true)
     try{
-      const [rc,re]=await Promise.all([authFetch('/api/classes'),authFetch('/api/eleves')])
-      const [dc,de]=await Promise.all([rc.json(),re.json()])
+      const [rc,re,rm,rp]=await Promise.all([authFetch('/api/classes'),authFetch('/api/eleves'),authFetch('/api/matieres'),authFetch('/api/professeurs')])
+      const [dc,de,dm,dp]=await Promise.all([rc.json(),re.json(),rm.json(),rp.json()])
       if(dc.success)setClasses(dc.data||[])
       if(de.success)setEleves(de.data||[])
+      if(dm.success)setMatieres(dm.data||[])
+      if(dp.success)setProfs(dp.data||[])
     }catch{
       toast2("Erreur de chargement","error")
     }
@@ -198,30 +178,63 @@ export default function AdminClasses(){
     })
   }
 
-  // CRUD Profs (démo locale, pas encore branchée au backend réel)
-  const svProf=()=>{
-    if(!fP.nom||!fP.prenom)return toast2("Nom et prénom requis","error")
-    if(mProf==="add"){
-      setProfs([...profs,{id:nid(profs),nom:fP.nom!,prenom:fP.prenom!,email:fP.email||"",matieres:fP.matieres||[],classes:fP.classes||(sel?[sel]:[])}])
-      toast2(`Prof. ${fP.prenom} ${fP.nom} ajouté(e) ✓`)
-    }else{
-      setProfs(profs.map(p=>p.id===fP.id?{...p,...fP}as Professeur:p))
-      toast2("Professeur modifié(e) ✓")
+  // CRUD Profs (vrais comptes, backend réel)
+  const svProf=async()=>{
+    if(!fP.nom||!fP.prenom||!fP.email)return toast2("Nom, prénom et email requis","error")
+    if(mProf==="add"&&(!fP.password||fP.password.length<8))return toast2("Mot de passe : 8 caractères minimum","error")
+    setSaving(true)
+    try{
+      const payload:any = mProf==="add"
+        ? {nom:fP.nom,prenom:fP.prenom,email:fP.email,password:fP.password,matieres:fP.matieres||[],classes:fP.classes||(sel?[sel]:[])}
+        : {id:fP.id,nom:fP.nom,prenom:fP.prenom,email:fP.email,matieres:fP.matieres||[],classes:fP.classes||[]}
+      const res=await authFetch('/api/professeurs',{
+        method: mProf==="add"?'POST':'PATCH',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(payload),
+      })
+      const data=await res.json()
+      if(!res.ok)throw new Error(data.error)
+      await charger()
+      toast2(mProf==="add"?`Prof. ${fP.prenom} ${fP.nom} ajouté(e) ✓`:"Professeur modifié(e) ✓")
+      setMProf(null);setFP({})
+    }catch(e:any){
+      toast2(e.message||"Erreur lors de l'enregistrement","error")
     }
-    setMProf(null);setFP({})
+    setSaving(false)
   }
-  const delProf=(id:number)=>{
-    const p=profs.find(x=>x.id===id)
-    askDel(`Supprimer ${p?.prenom} ${p?.nom} définitivement ?`,()=>{
-      setProfs(profs.filter(x=>x.id!==id))
-      toast2("Professeur supprimé(e)","error")
-    })
+  const toggleProf=async(p:Professeur)=>{
+    try{
+      const res=await authFetch('/api/professeurs',{
+        method:'PATCH',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({id:p.id,actif:!p.actif}),
+      })
+      if(!res.ok)throw new Error()
+      await charger()
+      toast2(`Professeur ${p.actif?"désactivé":"activé"} ✓`)
+    }catch{
+      toast2("Erreur lors de la mise à jour","error")
+    }
+  }
+  const retirerDeClasse=async(p:Professeur,classeId:string)=>{
+    try{
+      const res=await authFetch('/api/professeurs',{
+        method:'PATCH',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({id:p.id,classes:p.classes.filter(c=>c!==classeId),matieres:p.matieres}),
+      })
+      if(!res.ok)throw new Error()
+      await charger()
+      toast2("Professeur retiré de la classe ✓")
+    }catch{
+      toast2("Erreur lors de la mise à jour","error")
+    }
   }
 
   // Modal matières checkboxes
-  const MatieresCheck=({val,onChange}:{val:number[],onChange:(v:number[])=>void})=>(
+  const MatieresCheck=({val,onChange}:{val:string[],onChange:(v:string[])=>void})=>(
     <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-      {MATIERES_FIXED.map(m=>{
+      {matieres.map(m=>{
         const on=val.includes(m.id)
         return(
           <label key={m.id} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"5px 10px",borderRadius:8,background:on?m.couleur+"18":"#f9f9f9",border:`1px solid ${on?m.couleur:"#e5e7eb"}`}}>
@@ -319,19 +332,22 @@ export default function AdminClasses(){
         {profs.length===0
           ?<p style={{textAlign:"center",color:"#aaa",padding:24}}>Aucun professeur enregistré</p>
           :profs.map(p=>(
-            <div key={p.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 0",borderBottom:"1px solid #f3f4f6"}}>
+            <div key={p.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 0",borderBottom:"1px solid #f3f4f6",opacity:p.actif?1:.6}}>
               <Av nom={p.nom} prenom={p.prenom} id={p.id} size={40}/>
               <div style={{flex:1}}>
-                <p style={{margin:"0 0 4px",fontWeight:600,fontSize:14}}>{p.prenom} {p.nom}</p>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                  <p style={{margin:0,fontWeight:600,fontSize:14}}>{p.prenom} {p.nom}</p>
+                  {!p.actif&&<Bdg label="Désactivé" color="#888"/>}
+                </div>
                 <p style={{margin:"0 0 6px",fontSize:12,color:"#888"}}>{p.email}</p>
                 <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-                  {p.matieres.map(mid=>{const m=MATIERES_FIXED.find(x=>x.id===mid);return m?<Bdg key={mid} label={m.nom} color={m.couleur}/>:null})}
+                  {p.matieres.map(mid=>{const m=matieres.find(x=>x.id===mid);return m?<Bdg key={mid} label={m.nom} color={m.couleur}/>:null})}
                   {p.classes.map(cid=>{const c=classes.find(x=>x.id===cid);return c?<Bdg key={cid} label={c.nom} color="#475569"/>:null})}
                 </div>
               </div>
               <div style={{display:"flex",gap:6}}>
                 <button style={BE} onClick={()=>{setFP({...p});setMProf("edit")}}>✏️ Modifier</button>
-                <button style={BD} onClick={()=>delProf(p.id)}>🗑️ Supprimer</button>
+                <button style={p.actif?BD:BE} onClick={()=>toggleProf(p)}>{p.actif?"Désactiver":"Activer"}</button>
               </div>
             </div>
           ))
@@ -359,12 +375,15 @@ export default function AdminClasses(){
             <F label="Prénom *"><input style={IN} value={fP.prenom||""} onChange={e=>setFP({...fP,prenom:e.target.value})}/></F>
             <F label="Nom *"><input style={IN} value={fP.nom||""} onChange={e=>setFP({...fP,nom:e.target.value})}/></F>
           </div>
-          <F label="Email"><input style={IN} type="email" value={fP.email||""} onChange={e=>setFP({...fP,email:e.target.value})}/></F>
+          <F label="Email *"><input style={IN} type="email" value={fP.email||""} onChange={e=>setFP({...fP,email:e.target.value})}/></F>
+          {mProf==="add"&&(
+            <F label="Mot de passe (8 caractères min.) *"><input style={IN} type="password" value={fP.password||""} onChange={e=>setFP({...fP,password:e.target.value})}/></F>
+          )}
           <F label="Matières enseignées"><MatieresCheck val={fP.matieres||[]} onChange={v=>setFP({...fP,matieres:v})}/></F>
           <F label="Classes assignées"><ClassesCheck val={fP.classes||[]} onChange={v=>setFP({...fP,classes:v})}/></F>
           <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}}>
             <button style={BS} onClick={()=>setMProf(null)}>Annuler</button>
-            <button style={BP} onClick={svProf}>Enregistrer</button>
+            <button style={BP} onClick={svProf} disabled={saving}>{saving?"⏳...":"Enregistrer"}</button>
           </div>
         </Modal>
       )}
@@ -392,7 +411,7 @@ export default function AdminClasses(){
           <p style={{margin:0,opacity:.8,fontSize:13}}>Niveau {cl?.niveau} · Année 2024–2025</p>
         </div>
         <div style={{display:"flex",gap:20}}>
-          {[{v:eleves.filter(e=>e.classeId===sel).length,l:"Élèves"},{v:pC.length,l:"Profs"},{v:MATIERES_FIXED.length,l:"Matières"}].map(s=>(
+          {[{v:eleves.filter(e=>e.classeId===sel).length,l:"Élèves"},{v:pC.length,l:"Profs"},{v:matieres.length,l:"Matières"}].map(s=>(
             <div key={s.l} style={{textAlign:"center"}}>
               <p style={{fontSize:26,fontWeight:700,margin:0}}>{s.v}</p>
               <p style={{fontSize:12,opacity:.8,margin:0}}>{s.l}</p>
@@ -463,18 +482,18 @@ export default function AdminClasses(){
           {pC.length===0
             ?<p style={{textAlign:"center",color:"#aaa",padding:32}}>Aucun professeur assigné</p>
             :pC.map(p=>(
-              <div key={p.id} style={{display:"flex",alignItems:"center",gap:14,padding:14,border:"0.5px solid #e5e7eb",borderRadius:12,marginBottom:10}}>
+              <div key={p.id} style={{display:"flex",alignItems:"center",gap:14,padding:14,border:"0.5px solid #e5e7eb",borderRadius:12,marginBottom:10,opacity:p.actif?1:.6}}>
                 <Av nom={p.nom} prenom={p.prenom} id={p.id} size={46}/>
                 <div style={{flex:1}}>
                   <p style={{margin:"0 0 4px",fontWeight:700,fontSize:15}}>{p.prenom} {p.nom}</p>
                   <p style={{margin:"0 0 8px",fontSize:12,color:"#888"}}>{p.email}</p>
                   <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                    {p.matieres.map(mid=>{const m=MATIERES_FIXED.find(x=>x.id===mid);return m?<Bdg key={mid} label={m.nom} color={m.couleur}/>:null})}
+                    {p.matieres.map(mid=>{const m=matieres.find(x=>x.id===mid);return m?<Bdg key={mid} label={m.nom} color={m.couleur}/>:null})}
                   </div>
                 </div>
                 <div style={{display:"flex",gap:6}}>
                   <button style={BE} onClick={()=>{setFP({...p});setMProf("edit")}}>✏️ Modifier</button>
-                  <button style={BD} onClick={()=>delProf(p.id)}>🗑️ Retirer</button>
+                  <button style={BD} onClick={()=>retirerDeClasse(p,sel!)}>🗑️ Retirer</button>
                 </div>
               </div>
             ))
@@ -483,7 +502,7 @@ export default function AdminClasses(){
           <div style={{marginTop:20,paddingTop:16,borderTop:"1px solid #f3f4f6"}}>
             <p style={{fontSize:12,color:"#888",marginBottom:10,fontWeight:600}}>COUVERTURE DES MATIÈRES</p>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(185px,1fr))",gap:8}}>
-              {MATIERES_FIXED.map(m=>{
+              {matieres.map(m=>{
                 const p=pC.find(x=>x.matieres.includes(m.id))
                 return(
                   <div key={m.id} style={{padding:"10px 12px",borderRadius:10,background:m.couleur+"10",border:`1px solid ${m.couleur}30`}}>
@@ -539,12 +558,15 @@ export default function AdminClasses(){
             <F label="Prénom *"><input style={IN} value={fP.prenom||""} onChange={e=>setFP({...fP,prenom:e.target.value})}/></F>
             <F label="Nom *"><input style={IN} value={fP.nom||""} onChange={e=>setFP({...fP,nom:e.target.value})}/></F>
           </div>
-          <F label="Email"><input style={IN} type="email" value={fP.email||""} onChange={e=>setFP({...fP,email:e.target.value})}/></F>
+          <F label="Email *"><input style={IN} type="email" value={fP.email||""} onChange={e=>setFP({...fP,email:e.target.value})}/></F>
+          {mProf==="add"&&(
+            <F label="Mot de passe (8 caractères min.) *"><input style={IN} type="password" value={fP.password||""} onChange={e=>setFP({...fP,password:e.target.value})}/></F>
+          )}
           <F label="Matières enseignées"><MatieresCheck val={fP.matieres||[]} onChange={v=>setFP({...fP,matieres:v})}/></F>
           <F label="Classes assignées"><ClassesCheck val={fP.classes||[]} onChange={v=>setFP({...fP,classes:v})}/></F>
           <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}}>
             <button style={BS} onClick={()=>setMProf(null)}>Annuler</button>
-            <button style={BP} onClick={svProf}>Enregistrer</button>
+            <button style={BP} onClick={svProf} disabled={saving}>{saving?"⏳...":"Enregistrer"}</button>
           </div>
         </Modal>
       )}
