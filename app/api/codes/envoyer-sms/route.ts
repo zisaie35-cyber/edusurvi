@@ -7,14 +7,13 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Format international avec "+" (ex: +22670000000). Ajustez si votre
-// passerelle Kannel/SMSC attend un format différent (sans "+", 00...).
-function formatTelKannel(tel: string): string {
+// Brevo attend un numéro international SANS le "+" (ex: 22670000000)
+function formatTelBrevo(tel: string): string {
   const digits = tel.replace(/\D/g, '')
-  return `+${digits.startsWith('226') ? digits : `226${digits}`}`
+  return digits.startsWith('226') ? digits : `226${digits}`
 }
 
-// ── POST /api/codes/envoyer-sms — envoie le code parent par SMS (Kannel) ──────
+// ── POST /api/codes/envoyer-sms — envoie le code parent par SMS (Brevo) ───────
 export async function POST(request: NextRequest) {
   try {
     const { id } = await request.json()
@@ -33,21 +32,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Aucun numéro de téléphone renseigné' }, { status: 400 })
     }
 
-    const message = `EduSuivi : votre code d'accès parent pour ${codeParent.eleve_prenom} ${codeParent.eleve_nom} est ${codeParent.code}. Valable jusqu'au ${codeParent.date_expiration}.`
+    const res = await fetch('https://api.brevo.com/v3/transactionalSMS/sms', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'api-key': process.env.BREVO_API_KEY!,
+      },
+      body: JSON.stringify({
+        sender: process.env.BREVO_SMS_SENDER || 'EduSuivi',
+        recipient: formatTelBrevo(codeParent.parent_tel),
+        content: `EduSuivi : votre code d'accès parent pour ${codeParent.eleve_prenom} ${codeParent.eleve_nom} est ${codeParent.code}. Valable jusqu'au ${codeParent.date_expiration}.`,
+        type: 'transactional',
+      }),
+    })
 
-    const url = new URL(process.env.KANNEL_URL!) // ex: https://votre-serveur.tld:13013/cgi-bin/sendsms
-    url.searchParams.set('username', process.env.KANNEL_USERNAME!)
-    url.searchParams.set('password', process.env.KANNEL_PASSWORD!)
-    url.searchParams.set('to', formatTelKannel(codeParent.parent_tel))
-    url.searchParams.set('text', message)
-    if (process.env.KANNEL_FROM) url.searchParams.set('from', process.env.KANNEL_FROM)
-
-    const res = await fetch(url.toString(), { method: 'GET' })
-    const responseText = (await res.text()).trim()
-
-    // Kannel répond en texte brut, ex: "0: Accepted for delivery" en cas de succès.
-    if (!res.ok || !responseText.startsWith('0:')) {
-      throw new Error(responseText || `Échec de l'envoi (Kannel ${res.status})`)
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.message || `Échec de l'envoi (Brevo ${res.status})`)
     }
 
     const { data, error } = await supabase
