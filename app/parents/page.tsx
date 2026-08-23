@@ -354,8 +354,7 @@ const DUREES: Record<string, { label: string; prix: number }> = {
 function ObtenirCodeOverlay({ onClose }: { onClose: () => void }) {
   const [form, setForm] = useState({
     eleveMatricule: '', eleveNom: '', elevePrenom: '', eleveClasse: '',
-    parentNom: '', parentPrenom: '', parentEmail: '', parentTel: '',
-    validite: 'trimestre', telephoneExpediteur: '', referencePaiement: '',
+    parentEmail: '', parentTel: '', validite: 'trimestre',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -366,14 +365,11 @@ function ObtenirCodeOverlay({ onClose }: { onClose: () => void }) {
 
   const soumettre = async () => {
     setError('')
-    if (!form.eleveMatricule || !form.eleveNom || !form.elevePrenom) {
-      return setError('Matricule, nom et prénom de l\'élève requis')
+    if (!form.eleveMatricule || !form.eleveClasse || !form.eleveNom || !form.elevePrenom) {
+      return setError('Matricule, classe, nom et prénom de l\'élève requis')
     }
-    if (!form.parentNom || !form.parentPrenom || !form.parentTel) {
-      return setError('Nom, prénom et téléphone du parent requis')
-    }
-    if (!form.telephoneExpediteur || !form.referencePaiement) {
-      return setError('Numéro utilisé pour le paiement et référence de transaction requis')
+    if (!form.parentTel) {
+      return setError('Numéro de téléphone requis')
     }
 
     setLoading(true)
@@ -425,9 +421,9 @@ function ObtenirCodeOverlay({ onClose }: { onClose: () => void }) {
               <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 700, color: '#c2410c' }}>Comment ça marche</p>
               <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: '#7c2d12', lineHeight: 1.7 }}>
                 <li>Choisissez une durée ci-dessous et notez le montant.</li>
-                <li>Envoyez ce montant via <strong>Orange Money</strong> au <strong>{NUMERO_ORANGE_MONEY}</strong>.</li>
-                <li>Notez la référence de transaction reçue par SMS après le transfert.</li>
-                <li>Remplissez ce formulaire avec cette référence — votre code sera activé après vérification.</li>
+                <li>Envoyez ce montant via <strong>Orange Money</strong> au <strong>{NUMERO_ORANGE_MONEY}</strong> depuis le numéro que vous renseignez ci-dessous.</li>
+                <li>Remplissez le formulaire et envoyez votre demande — l'école est alertée immédiatement et vérifie le paiement.</li>
+                <li>Votre code d'accès vous est envoyé par SMS/email dès que le paiement est confirmé.</li>
               </ol>
             </div>
 
@@ -447,18 +443,8 @@ function ObtenirCodeOverlay({ onClose }: { onClose: () => void }) {
               <div><p style={labelStyle}>Classe</p><input style={inputStyle} value={form.eleveClasse} onChange={e => set('eleveClasse', e.target.value)} placeholder="3ème A" /></div>
               <div><p style={labelStyle}>Prénom élève</p><input style={inputStyle} value={form.elevePrenom} onChange={e => set('elevePrenom', e.target.value)} /></div>
               <div><p style={labelStyle}>Nom élève</p><input style={inputStyle} value={form.eleveNom} onChange={e => set('eleveNom', e.target.value)} /></div>
-              <div><p style={labelStyle}>Votre prénom</p><input style={inputStyle} value={form.parentPrenom} onChange={e => set('parentPrenom', e.target.value)} /></div>
-              <div><p style={labelStyle}>Votre nom</p><input style={inputStyle} value={form.parentNom} onChange={e => set('parentNom', e.target.value)} /></div>
-              <div><p style={labelStyle}>Votre téléphone</p><input style={inputStyle} value={form.parentTel} onChange={e => set('parentTel', e.target.value)} placeholder="70 00 00 00" /></div>
-              <div><p style={labelStyle}>Votre email (optionnel)</p><input style={inputStyle} type="email" value={form.parentEmail} onChange={e => set('parentEmail', e.target.value)} /></div>
-            </div>
-
-            <div style={{ borderTop: '1px dashed #e5e7eb', paddingTop: 12, marginTop: 6, marginBottom: 6 }}>
-              <p style={{ fontSize: 12, fontWeight: 700, color: '#1a1a2e', marginBottom: 8 }}>Informations du paiement Orange Money</p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 4 }}>
-                <div><p style={labelStyle}>Numéro utilisé pour payer</p><input style={inputStyle} value={form.telephoneExpediteur} onChange={e => set('telephoneExpediteur', e.target.value)} placeholder="70 00 00 00" /></div>
-                <div><p style={labelStyle}>Référence de la transaction</p><input style={inputStyle} value={form.referencePaiement} onChange={e => set('referencePaiement', e.target.value)} placeholder="Reçue par SMS Orange" /></div>
-              </div>
+              <div><p style={labelStyle}>Numéro utilisé pour payer (Orange Money)</p><input style={inputStyle} value={form.parentTel} onChange={e => set('parentTel', e.target.value)} placeholder="70 00 00 00" /></div>
+              <div><p style={labelStyle}>Email (optionnel)</p><input style={inputStyle} type="email" value={form.parentEmail} onChange={e => set('parentEmail', e.target.value)} /></div>
             </div>
 
             {error && (

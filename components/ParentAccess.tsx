@@ -11,8 +11,8 @@ interface CodeParent {
   eleve_prenom: string
   eleve_matricule: string
   eleve_classe: string
-  parent_nom: string
-  parent_prenom: string
+  parent_nom: string | null
+  parent_prenom: string | null
   parent_email: string
   parent_tel: string
   validite: string
@@ -51,6 +51,11 @@ const VALIDITES: Record<string, { label:string; jours:number; prix:number; coule
 
 function isExpired(date: string): boolean {
   return date < new Date().toISOString().split('T')[0]
+}
+
+function nomParent(c: { parent_nom: string | null; parent_prenom: string | null }): string {
+  if (!c.parent_nom && !c.parent_prenom) return 'Non renseigné'
+  return `${c.parent_prenom || ''} ${c.parent_nom || ''}`.trim()
 }
 
 function formatDate(d: string): string {
@@ -161,7 +166,7 @@ export function AdminCodes() {
   // Filtrage
   const filtered = useMemo(() => {
     return codes.filter(c => {
-      const txt = `${c.eleve_nom} ${c.eleve_prenom} ${c.code} ${c.eleve_classe} ${c.parent_nom} ${c.parent_prenom}`.toLowerCase()
+      const txt = `${c.eleve_nom} ${c.eleve_prenom} ${c.code} ${c.eleve_classe} ${c.parent_nom || ''} ${c.parent_prenom || ''}`.toLowerCase()
       if (!txt.includes(search.toLowerCase())) return false
       if (filterStatut === 'paiement_attente') return c.statut_paiement === 'en_attente'
       if (filterStatut === 'actif') return c.actif && !isExpired(c.date_expiration)
@@ -223,7 +228,7 @@ export function AdminCodes() {
   // Activer / Désactiver
   const toggleActif = async (c: CodeParent) => {
     setConfirm({
-      msg: `${c.actif ? 'Désactiver' : 'Activer'} le code ${c.code} de ${c.parent_prenom} ${c.parent_nom} ?`,
+      msg: `${c.actif ? 'Désactiver' : 'Activer'} le code ${c.code} de ${nomParent(c)} ?`,
       onOui: async () => {
         setConfirm(null)
         try {
@@ -246,7 +251,7 @@ export function AdminCodes() {
   // Supprimer
   const supprimer = async (c: CodeParent) => {
     setConfirm({
-      msg: `Supprimer définitivement le code de ${c.parent_prenom} ${c.parent_nom} pour ${c.eleve_prenom} ${c.eleve_nom} ?`,
+      msg: `Supprimer définitivement le code de ${nomParent(c)} pour ${c.eleve_prenom} ${c.eleve_nom} ?`,
       onOui: async () => {
         setConfirm(null)
         try {
@@ -282,7 +287,7 @@ export function AdminCodes() {
   // Confirmer un paiement Orange Money en attente
   const confirmerPaiement = async (c: CodeParent) => {
     setConfirm({
-      msg: `Confirmer le paiement de ${c.montant?.toLocaleString()} FCFA (réf. ${c.reference_paiement}) pour ${c.parent_prenom} ${c.parent_nom} ? Le code sera activé.`,
+      msg: `Confirmer le paiement de ${c.montant?.toLocaleString()} FCFA pour ${c.eleve_prenom} ${c.eleve_nom} (tél. ${c.telephone_expediteur || c.parent_tel}) ? Le code sera activé.`,
       onOui: async () => {
         setConfirm(null)
         try {
@@ -305,7 +310,7 @@ export function AdminCodes() {
 
   // Rejeter un paiement Orange Money en attente
   const rejeterPaiement = async (c: CodeParent) => {
-    const motif = window.prompt(`Motif du rejet du paiement de ${c.parent_prenom} ${c.parent_nom} ?`)
+    const motif = window.prompt(`Motif du rejet du paiement pour ${c.eleve_prenom} ${c.eleve_nom} ?`)
     if (!motif) return
     try {
       const res = await fetch('/api/codes', {
@@ -462,7 +467,7 @@ export function AdminCodes() {
                             <span style={{ fontSize:11, padding:'2px 8px', borderRadius:4, background:'#f3f4f6', color:'#555', fontWeight:500 }}>{c.eleve_classe}</span>
                           </td>
                           <td style={{ padding:'11px 14px' }}>
-                            <p style={{ margin:0, fontWeight:500 }}>{c.parent_prenom} {c.parent_nom}</p>
+                            <p style={{ margin:0, fontWeight:500 }}>{nomParent(c)}</p>
                             <p style={{ margin:0, fontSize:11, color:'#888' }}>
                               {c.parent_tel && `📱 ${c.parent_tel}`}
                               {c.parent_email && ` ✉️ ${c.parent_email}`}
@@ -597,7 +602,7 @@ export function AdminCodes() {
               { label:'Élève',     val:`${selected.eleve_prenom} ${selected.eleve_nom}` },
               { label:'Classe',    val:selected.eleve_classe },
               { label:'Matricule', val:selected.eleve_matricule },
-              { label:'Parent',    val:`${selected.parent_prenom} ${selected.parent_nom}` },
+              { label:'Parent',    val: nomParent(selected) },
               { label:'Validité',  val:VALIDITES[selected.validite]?.label || selected.validite },
               { label:'Expire le', val:formatDate(selected.date_expiration) },
             ].map(item => (
@@ -614,8 +619,10 @@ export function AdminCodes() {
               <p style={{ margin:'0 0 10px', fontWeight:600, fontSize:13 }}>💰 Paiement Orange Money</p>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom: selected.statut_paiement === 'en_attente' ? 12 : 0 }}>
                 <div><p style={{ margin:0, fontSize:11, color:'#888' }}>Montant</p><p style={{ margin:0, fontSize:13, fontWeight:600 }}>{selected.montant?.toLocaleString()} FCFA</p></div>
-                <div><p style={{ margin:0, fontSize:11, color:'#888' }}>Référence transaction</p><p style={{ margin:0, fontSize:13, fontWeight:600 }}>{selected.reference_paiement}</p></div>
                 <div><p style={{ margin:0, fontSize:11, color:'#888' }}>Numéro expéditeur</p><p style={{ margin:0, fontSize:13, fontWeight:600 }}>{selected.telephone_expediteur}</p></div>
+                {selected.reference_paiement && (
+                  <div><p style={{ margin:0, fontSize:11, color:'#888' }}>Référence transaction</p><p style={{ margin:0, fontSize:13, fontWeight:600 }}>{selected.reference_paiement}</p></div>
+                )}
                 {selected.statut_paiement === 'rejete' && selected.motif_rejet_paiement && (
                   <div><p style={{ margin:0, fontSize:11, color:'#888' }}>Motif du rejet</p><p style={{ margin:0, fontSize:13, fontWeight:600, color:'#dc2626' }}>{selected.motif_rejet_paiement}</p></div>
                 )}

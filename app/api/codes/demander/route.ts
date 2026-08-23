@@ -2,7 +2,8 @@
 // Demande d'accès parent en libre-service, payée par Orange Money.
 // Le paiement n'est PAS vérifié automatiquement (pas d'API marchande Orange
 // Money) : la demande est créée inactive, en attente de confirmation manuelle
-// par l'administration (rapprochement avec la référence de transaction).
+// par l'administration. Une alerte email + SMS est envoyée immédiatement à
+// l'administration pour accélérer la vérification.
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
@@ -10,6 +11,9 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
+
+const ADMIN_ALERT_EMAIL = process.env.ADMIN_ALERT_EMAIL || 'zisaie35@yahoo.fr'
+const ADMIN_ALERT_TEL = process.env.ADMIN_ALERT_TEL || '76260715'
 
 const VALIDITES: Record<string, { jours: number; prix: number }> = {
   semaine: { jours: 7, prix: 500 },
@@ -28,21 +32,55 @@ function addDays(n: number): string {
   return d.toISOString().split('T')[0]
 }
 
+function formatTelBrevo(tel: string): string {
+  const digits = tel.replace(/\D/g, '')
+  return digits.startsWith('226') ? digits : `226${digits}`
+}
+
+// Alerte admin best-effort : ne doit jamais faire échouer la demande du parent.
+async function alerterAdmin(params: { eleveNom: string; elevePrenom: string; eleveMatricule: string; eleveClasse: string; montant: number; parentTel: string }) {
+  const texte = `EduSuivi : nouvelle demande de code parent — ${params.elevePrenom} ${params.eleveNom} (matricule ${params.eleveMatricule}, ${params.eleveClasse}). Montant annoncé : ${params.montant} FCFA. Tél. payeur : ${params.parentTel}. Vérifiez Orange Money et confirmez dans l'admin.`
+
+  if (process.env.BREVO_API_KEY) {
+    try {
+      await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'api-key': process.env.BREVO_API_KEY },
+        body: JSON.stringify({
+          sender: { name: process.env.BREVO_FROM_NAME || 'EduSuivi', email: process.env.BREVO_FROM_EMAIL },
+          to: [{ email: ADMIN_ALERT_EMAIL }],
+          subject: `Nouvelle demande de code parent — ${params.elevePrenom} ${params.eleveNom}`,
+          htmlContent: `<p>${texte}</p>`,
+        }),
+      })
+    } catch { /* best-effort */ }
+
+    try {
+      await fetch('https://api.brevo.com/v3/transactionalSMS/sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'api-key': process.env.BREVO_API_KEY },
+        body: JSON.stringify({
+          sender: process.env.BREVO_SMS_SENDER || 'EduSuivi',
+          recipient: formatTelBrevo(ADMIN_ALERT_TEL),
+          content: texte,
+          type: 'transactional',
+        }),
+      })
+    } catch { /* best-effort */ }
+  }
+}
+
 // ── POST /api/codes/demander — demande de code parent via paiement Orange Money ──
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const {
-      eleveMatricule, eleveNom, elevePrenom, eleveClasse,
-      parentNom, parentPrenom, parentEmail, parentTel,
-      validite, telephoneExpediteur, referencePaiement,
-    } = body
+    const { eleveMatricule, eleveNom, elevePrenom, eleveClasse, parentTel, parentEmail, validite } = body
 
-    if (!eleveMatricule || !eleveNom || !elevePrenom || !parentNom || !parentPrenom || !parentTel) {
-      return NextResponse.json({ error: 'Champs requis manquants' }, { status: 400 })
+    if (!eleveMatricule || !eleveNom || !elevePrenom || !eleveClasse) {
+      return NextResponse.json({ error: 'Matricule, classe, nom et prénom de l\'élève requis' }, { status: 400 })
     }
-    if (!referencePaiement || !telephoneExpediteur) {
-      return NextResponse.json({ error: 'Référence de transaction et numéro expéditeur requis' }, { status: 400 })
+    if (!parentTel) {
+      return NextResponse.json({ error: 'Numéro de téléphone requis' }, { status: 400 })
     }
 
     const tarif = VALIDITES[validite]
@@ -72,9 +110,9 @@ export async function POST(request: NextRequest) {
         eleve_nom: eleveNom,
         eleve_prenom: elevePrenom,
         eleve_matricule: eleveMatricule,
-        eleve_classe: eleveClasse || null,
-        parent_nom: parentNom,
-        parent_prenom: parentPrenom,
+        eleve_classe: eleveClasse,
+        parent_nom: null,
+        parent_prenom: null,
         parent_email: parentEmail || null,
         parent_tel: parentTel,
         validite,
@@ -84,14 +122,18 @@ export async function POST(request: NextRequest) {
         email_sent: false,
         statut_paiement: 'en_attente',
         operateur_paiement: 'orange_money',
-        reference_paiement: referencePaiement,
-        telephone_expediteur: telephoneExpediteur,
+        telephone_expediteur: parentTel,
         montant: tarif.prix,
       })
       .select()
       .single()
 
     if (error) throw error
+
+    await alerterAdmin({
+      eleveNom, elevePrenom, eleveMatricule, eleveClasse,
+      montant: tarif.prix, parentTel,
+    })
 
     return NextResponse.json({ success: true, data: { id: data.id, montant: tarif.prix } }, { status: 201 })
   } catch (error: any) {

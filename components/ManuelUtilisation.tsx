@@ -171,7 +171,7 @@ const SECTIONS: Section[] = [
       "Recherchez un code existant par élève, parent, code ou classe, ou filtrez par statut (actif, expiré, désactivé).",
       "Cliquez sur « + Générer un code », sélectionnez l'élève, renseignez les informations du parent (téléphone et/ou email requis) et choisissez la durée de validité (semaine, mois, trimestre ou année, chacune avec son tarif affiché).",
       "Pour un code existant : activez/désactivez-le 🔒🔓, renouvelez-le 🔄 pour prolonger sa validité, envoyez-le par SMS 📱 ou email ✉️, ou supprimez-le 🗑️.",
-      "Les demandes soumises par les parents eux-mêmes via « Obtenir un code » (paiement Orange Money) apparaissent avec le statut « Paiement en attente » (filtre dédié 💰) : ouvrez la demande pour voir le montant, la référence de transaction et le numéro expéditeur, puis « ✅ Confirmer le paiement » (active le code) ou « ❌ Rejeter » (motif requis) après vérification manuelle du virement.",
+      "Les demandes soumises par les parents eux-mêmes via « Obtenir un code » (paiement Orange Money) déclenchent une alerte immédiate par email et SMS à l'administration, et apparaissent avec le statut « Paiement en attente » (filtre dédié 💰) : ouvrez la demande pour voir le montant et le numéro expéditeur, puis « ✅ Confirmer le paiement » (active le code) ou « ❌ Rejeter » (motif requis) après vérification manuelle sur votre compte Orange Money.",
     ],
   },
   {
@@ -185,7 +185,7 @@ const SECTIONS: Section[] = [
       "Cliquez sur « Accéder au suivi » : la fiche de votre enfant s'affiche (nom, classe, matricule, date d'expiration de l'accès).",
       "Trois onglets sont disponibles : « Notes » (moyenne générale et détail par matière), « Devoirs » (prochaines échéances) et « Absences » (compteurs et historique justifié/non justifié).",
       "Cliquez sur « Déconnexion » pour quitter l'espace et ressaisir un code plus tard.",
-      "Pas encore de code ? Cliquez sur « 🟠 Obtenir un code avec Orange Money » : choisissez une durée, envoyez le montant affiché au 76 26 07 15 via Orange Money, puis renseignez le formulaire (matricule et infos de l'élève, vos coordonnées, et la référence de la transaction reçue par SMS). Le code est activé après vérification manuelle du paiement par l'établissement et vous est envoyé par SMS/email.",
+      "Pas encore de code ? Cliquez sur « 🟠 Obtenir un code avec Orange Money » : renseignez le matricule, la classe, le nom et prénom de l'élève, votre numéro de téléphone (celui utilisé pour payer), choisissez une durée puis envoyez le montant affiché au 76 26 07 15 via Orange Money. L'établissement est alerté aussitôt, vérifie le paiement, puis active le code et vous l'envoie par SMS/email.",
     ],
     astuce: "Si vous n'avez pas de code, contactez l'administration de l'établissement ou utilisez « Obtenir un code avec Orange Money » directement depuis le portail.",
   },
