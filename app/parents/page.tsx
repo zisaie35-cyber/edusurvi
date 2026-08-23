@@ -1,6 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
+
+const ManuelUtilisation = dynamic(() => import('@/components/ManuelUtilisation'), { ssr: false })
 
 function formatDate(d: string): string {
   return new Date(d).toLocaleDateString('fr-FR', {
@@ -14,6 +17,7 @@ export default function ParentsPage() {
   const [loading, setLoading] = useState(false)
   const [eleve, setEleve] = useState<any>(null)
   const [tab, setTab] = useState<'notes' | 'devoirs' | 'absences'>('notes')
+  const [showHelp, setShowHelp] = useState(false)
 
   const handleDigit = (i: number, val: string) => {
     if (!/^\d*$/.test(val)) return
@@ -60,6 +64,7 @@ export default function ParentsPage() {
   if (eleve) {
     return (
       <div style={{ minHeight: '100vh', background: '#f4f6fb', fontFamily: "'Segoe UI',system-ui,sans-serif" }}>
+        {showHelp && <HelpOverlay onClose={() => setShowHelp(false)} />}
 
         {/* Header */}
         <div style={{ background: 'linear-gradient(135deg,#1a1a2e,#2563eb)', color: '#fff', padding: '18px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
@@ -77,6 +82,12 @@ export default function ParentsPage() {
               <p style={{ margin: 0, fontSize: 11, opacity: .7 }}>Accès valide jusqu'au</p>
               <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>{formatDate(eleve.dateExpiration)}</p>
             </div>
+            <button
+              onClick={() => setShowHelp(true)}
+              style={{ padding: '7px 14px', background: 'rgba(255,255,255,.15)', border: '1px solid rgba(255,255,255,.3)', borderRadius: 8, color: '#fff', fontSize: 12, cursor: 'pointer' }}
+            >
+              ❓ Aide
+            </button>
             <button
               onClick={() => { setEleve(null); setDigits(['', '', '', '', '', '']) }}
               style={{ padding: '7px 14px', background: 'rgba(255,255,255,.15)', border: '1px solid rgba(255,255,255,.3)', borderRadius: 8, color: '#fff', fontSize: 12, cursor: 'pointer' }}
@@ -112,6 +123,7 @@ export default function ParentsPage() {
   // ── Page saisie code ──────────────────────────────────────────────────────────
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg,#1a1a2e,#2563eb)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: "'Segoe UI',system-ui,sans-serif" }}>
+      {showHelp && <HelpOverlay onClose={() => setShowHelp(false)} />}
       <div style={{ background: '#fff', borderRadius: 20, padding: '40px 36px', width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,.25)' }}>
 
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
@@ -168,7 +180,13 @@ export default function ParentsPage() {
           </p>
         </div>
 
-        <div style={{ marginTop: 14, textAlign: 'center' }}>
+        <div style={{ marginTop: 14, display: 'flex', justifyContent: 'center', gap: 16 }}>
+          <button
+            onClick={() => setShowHelp(true)}
+            style={{ background: 'none', border: 'none', fontSize: 12, color: '#2563eb', cursor: 'pointer', padding: 0 }}
+          >
+            ❓ Comment ça marche ?
+          </button>
           <a href="/login" style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none' }}>
             ← Retour à la connexion
           </a>
@@ -309,6 +327,23 @@ function AbsencesView() {
             <p style={{ margin: 0, fontSize: 13 }}>08 octobre 2024</p>
             <p style={{ margin: 0, fontSize: 12, color: '#888' }}>Arrivée 08h25 · Transport · Justifié</p>
           </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Aide ─────────────────────────────────────────────────────────────────────
+function HelpOverlay({ onClose }: { onClose: () => void }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', justifyContent: 'center', padding: '5vh 20px', overflowY: 'auto' }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background: '#f4f6fb', borderRadius: 16, width: '100%', maxWidth: 720, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', background: '#fff', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0 }}>
+          <strong style={{ fontSize: 15 }}>Aide — Espace Parents</strong>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: '#888' }}>✕</button>
+        </div>
+        <div style={{ padding: 24 }}>
+          <ManuelUtilisation role="parent" />
         </div>
       </div>
     </div>

@@ -13,6 +13,7 @@ const ProgrammeDevoirs = dynamic(() => import('./ProgrammeDevoirs'), { ssr: fals
 const AdminCodes = dynamic(() => import('./ParentAccess').then(m => ({ default: m.AdminCodes })), { ssr: false })
 const PointsDashboard = dynamic(() => import('./PointsModule').then(m => ({ default: m.PointsDashboard })), { ssr: false })
 const AdminPoints = dynamic(() => import('./PointsModule').then(m => ({ default: m.AdminPoints })), { ssr: false })
+const ManuelUtilisation = dynamic(() => import('./ManuelUtilisation'), { ssr: false })
 
 // Données de démonstration (remplacées progressivement par les APIs)
 const SEED = {
@@ -398,6 +399,7 @@ function getNavItems(role: string) {
       {id:"discipline",    icon:"⚠️", label:"Discipline"},
       {id:"codes_parents", icon:"🔑", label:"Codes parents"},
       {id:"admin_points",  icon:"🏆", label:"Points & Récompenses"},
+      {id:"manuel",        icon:"📖", label:"Manuel d'utilisation"},
     ],
     professeur: [
       {id:"home",          icon:"📊", label:"Tableau de bord"},
@@ -405,6 +407,7 @@ function getNavItems(role: string) {
       {id:"devoirs",       icon:"📅", label:"Programme devoirs"},
       {id:"eleves",        icon:"👤", label:"Mes élèves"},
       {id:"mes_points",    icon:"🏆", label:"Mes points"},
+      {id:"manuel",        icon:"📖", label:"Manuel d'utilisation"},
     ],
     surveillant: [
       {id:"home",          icon:"📊", label:"Tableau de bord"},
@@ -412,12 +415,14 @@ function getNavItems(role: string) {
       {id:"eleves",        icon:"👤", label:"Élèves"},
       {id:"sanctions",     icon:"⚠️", label:"Sanctions"},
       {id:"mes_points",    icon:"🏆", label:"Mes points"},
+      {id:"manuel",        icon:"📖", label:"Manuel d'utilisation"},
     ],
     eleve: [
       {id:"home",         icon:"📊", label:"Mon espace"},
       {id:"notes",        icon:"📝", label:"Mes notes"},
       {id:"devoirs",      icon:"📅", label:"Programme devoirs"},
       {id:"mon_assiduite",icon:"⏰", label:"Assiduité"},
+      {id:"manuel",       icon:"📖", label:"Manuel d'utilisation"},
     ],
   }
   return all[role] || []
@@ -463,6 +468,7 @@ export default function MainApp({ initialUser }: { initialUser: any }) {
     if (page === "mon_assiduite") return <div style={{padding:24,textAlign:"center",color:"#888"}}><p style={{fontSize:32}}>⏰</p><p>Assiduité — disponible prochainement</p></div>
     if (page === "sanctions") return <SanctionsPageComp {...props}/>
     if (page === "classes") return <AdminClasses />
+    if (page === "manuel") return <ManuelUtilisation role={session.role} />
     if (page === "discipline") return (
       <div>
         <PageTitle>Discipline</PageTitle>
