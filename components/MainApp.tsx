@@ -624,7 +624,7 @@ export default function MainApp({ initialUser, superAdminEcoleNom, onExitEcole }
     if (page === "eleves") return <ElevesPageComp role={session.role} showToast={showToast}/>
     if (page === "saisie_notes") return <SaisieApp role="professeur"/>
     if (page === "absences") return <SaisieApp role="surveillant"/>
-    if (page === "devoirs") return <ProgrammeDevoirs role={session.role} classeEleve={session.role==="eleve" ? "3e A" : ""} />
+    if (page === "devoirs") return <ProgrammeDevoirs role={session.role} />
     if (page === "codes_parents") return <AdminCodes />
     if (page === "mes_points") return <PointsDashboard session={session} />
     if (page === "admin_points") return <AdminPoints />

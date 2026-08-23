@@ -1,13 +1,16 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { authFetch } from '@/lib/apiClient'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+interface Classe { id: string; nom: string; niveau: string }
+
 interface Devoir {
   id: string
   date: string        // "2025-04-03"
   matiere: string
-  classes: string[]   // ["6e A","6e B","6e C","6e D"]
+  classes: string[]   // ids de classes réelles
   heureDebut: string  // "10:00"
   heureFin: string    // "12:00"
   professeur: string
@@ -17,95 +20,6 @@ interface Devoir {
   note?: string       // remarque optionnelle
 }
 
-// ─── Données initiales depuis le fichier fourni ───────────────────────────────
-const DEVOIRS_INIT: Devoir[] = [
-  // 6ème
-  {id:"d1",  date:"2025-04-03", matiere:"Français",     classes:["6e A","6e B","6e C","6e D"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d2",  date:"2025-04-07", matiere:"Maths",        classes:["6e A","6e B","6e C","6e D"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d3",  date:"2025-04-10", matiere:"Anglais",      classes:["6e A","6e B","6e C","6e D"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d4",  date:"2025-04-14", matiere:"Histoire-Géo", classes:["6e A","6e B","6e C","6e D"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d5",  date:"2025-04-17", matiere:"SVT",          classes:["6e A","6e B","6e C","6e D"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d6",  date:"2025-04-21", matiere:"Maths",        classes:["6e A","6e B","6e C","6e D"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d7",  date:"2025-04-24", matiere:"Français",     classes:["6e A","6e B","6e C","6e D"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d8",  date:"2025-04-28", matiere:"Anglais",      classes:["6e A","6e B","6e C","6e D"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d9",  date:"2025-05-05", matiere:"Histoire-Géo", classes:["6e A","6e B","6e C","6e D"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d10", date:"2025-05-08", matiere:"SVT",          classes:["6e A","6e B","6e C","6e D"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d11", date:"2025-05-12", matiere:"IR",           classes:["6e A","6e B","6e C","6e D"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  // 5ème
-  {id:"d12", date:"2025-04-03", matiere:"Français",     classes:["5e A","5e B","5e C","5e D"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d13", date:"2025-04-07", matiere:"Maths",        classes:["5e A","5e B","5e C","5e D"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d14", date:"2025-04-10", matiere:"Anglais",      classes:["5e A","5e B","5e C","5e D"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d15", date:"2025-04-14", matiere:"Histoire-Géo", classes:["5e A","5e B","5e C","5e D"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d16", date:"2025-04-17", matiere:"SVT",          classes:["5e A","5e B","5e C","5e D"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d17", date:"2025-04-21", matiere:"Maths",        classes:["5e A","5e B","5e C","5e D"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d18", date:"2025-04-24", matiere:"Français",     classes:["5e A","5e B","5e C","5e D"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d19", date:"2025-04-28", matiere:"Anglais",      classes:["5e A","5e B","5e C","5e D"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d20", date:"2025-05-05", matiere:"Histoire-Géo", classes:["5e A","5e B","5e C","5e D"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d21", date:"2025-05-08", matiere:"SVT",          classes:["5e A","5e B","5e C","5e D"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d22", date:"2025-05-12", matiere:"IR",           classes:["5e A","5e B","5e C","5e D"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  // 4ème
-  {id:"d23", date:"2025-04-02", matiere:"Français",     classes:["4e A","4e B","4e C"], heureDebut:"15:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d24", date:"2025-04-07", matiere:"Maths",        classes:["4e A","4e B","4e C"], heureDebut:"15:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d25", date:"2025-04-10", matiere:"Anglais",      classes:["4e A","4e B","4e C"], heureDebut:"15:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d26", date:"2025-04-14", matiere:"Histoire-Géo", classes:["4e A","4e B","4e C"], heureDebut:"15:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d27", date:"2025-04-17", matiere:"SVT",          classes:["4e A","4e B","4e C"], heureDebut:"15:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d28", date:"2025-04-21", matiere:"PC",           classes:["4e A","4e B","4e C"], heureDebut:"15:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d29", date:"2025-04-24", matiere:"EC",           classes:["4e A","4e B","4e C"], heureDebut:"15:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d30", date:"2025-04-28", matiere:"IR",           classes:["4e A","4e B","4e C"], heureDebut:"15:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d31", date:"2025-05-05", matiere:"TIC",          classes:["4e A","4e B","4e C"], heureDebut:"15:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d32", date:"2025-05-10", matiere:"Composition",  classes:["4e A","4e B","4e C"], heureDebut:"07:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"composition"},
-  // 3ème
-  {id:"d33", date:"2025-04-02", matiere:"Français",     classes:["3e A","3e B","3e C"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d34", date:"2025-04-09", matiere:"TIC-EC",       classes:["3e A","3e B","3e C"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d35", date:"2025-04-11", matiere:"Oral d'anglais", classes:["3e A","3e B","3e C"], heureDebut:"08:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"examen"},
-  {id:"d36", date:"2025-04-14", matiere:"Examen Spécial G9", classes:["3e A","3e B","3e C"], heureDebut:"08:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"examen", note:"Mardi 14 - Mercredi 15 avril"},
-  {id:"d37", date:"2025-04-18", matiere:"Anglais",      classes:["3e A","3e B","3e C"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d38", date:"2025-04-22", matiere:"Histoire-Géo", classes:["3e A","3e B","3e C"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d39", date:"2025-04-25", matiere:"SVT",          classes:["3e A","3e B","3e C"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d40", date:"2025-04-29", matiere:"Sortie récréative", classes:["3e A","3e B","3e C"], heureDebut:"08:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"sortie"},
-  {id:"d41", date:"2025-05-02", matiere:"PC",           classes:["3e A","3e B","3e C"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d42", date:"2025-05-07", matiere:"Maths",        classes:["3e A","3e B","3e C"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d43", date:"2025-05-09", matiere:"Français",     classes:["3e A","3e B","3e C"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d44", date:"2025-05-14", matiere:"IR",           classes:["3e A","3e B","3e C"], heureDebut:"10:00", heureFin:"12:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  // 2nde C
-  {id:"d45", date:"2025-04-03", matiere:"Français",     classes:["2de C1","2de C2"], heureDebut:"15:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d46", date:"2025-04-07", matiere:"Anglais",      classes:["2de C1","2de C2"], heureDebut:"15:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d47", date:"2025-04-10", matiere:"Histoire-Géo", classes:["2de C1","2de C2"], heureDebut:"15:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d48", date:"2025-04-14", matiere:"SVT",          classes:["2de C1","2de C2"], heureDebut:"15:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d49", date:"2025-04-17", matiere:"Philo-PC",     classes:["2de C1","2de C2"], heureDebut:"15:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d50", date:"2025-04-21", matiere:"Maths",        classes:["2de C1","2de C2"], heureDebut:"15:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d51", date:"2025-04-24", matiere:"Français",     classes:["2de C1","2de C2"], heureDebut:"14:00", heureFin:"18:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d52", date:"2025-04-28", matiere:"Anglais",      classes:["2de C1","2de C2"], heureDebut:"15:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d53", date:"2025-05-05", matiere:"Histoire-Géo", classes:["2de C1","2de C2"], heureDebut:"15:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d54", date:"2025-05-08", matiere:"SVT",          classes:["2de C1","2de C2"], heureDebut:"15:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d55", date:"2025-05-12", matiere:"PC",           classes:["2de C1","2de C2"], heureDebut:"15:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d56", date:"2025-05-14", matiere:"Maths",        classes:["2de C1","2de C2"], heureDebut:"14:00", heureFin:"18:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  // 1ère D
-  {id:"d57", date:"2025-04-02", matiere:"Maths",        classes:["1re D1","1re D2"], heureDebut:"14:00", heureFin:"18:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d58", date:"2025-04-09", matiere:"SVT",          classes:["1re D1","1re D2"], heureDebut:"15:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d59", date:"2025-04-11", matiere:"PC",           classes:["1re D1","1re D2"], heureDebut:"07:00", heureFin:"11:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d60", date:"2025-04-18", matiere:"Français",     classes:["1re D1","1re D2"], heureDebut:"07:00", heureFin:"11:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d61", date:"2025-04-22", matiere:"Histoire-Géo", classes:["1re D1","1re D2"], heureDebut:"15:00", heureFin:"18:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d62", date:"2025-04-25", matiere:"Anglais",      classes:["1re D1","1re D2"], heureDebut:"07:00", heureFin:"11:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d63", date:"2025-04-30", matiere:"EC-IR",        classes:["1re D1","1re D2"], heureDebut:"15:00", heureFin:"18:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d64", date:"2025-05-02", matiere:"TIC",          classes:["1re D1","1re D2"], heureDebut:"07:00", heureFin:"11:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d65", date:"2025-05-10", matiere:"Composition",  classes:["1re D1","1re D2"], heureDebut:"07:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"composition"},
-  // Terminale
-  {id:"d66", date:"2025-04-02", matiere:"SVT",          classes:["Tle D1","Tle D2"], heureDebut:"14:00", heureFin:"18:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d67", date:"2025-04-09", matiere:"SVT-Philo",    classes:["Tle D1","Tle D2"], heureDebut:"14:00", heureFin:"18:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d68", date:"2025-04-14", matiere:"Examen Spécial G9", classes:["Tle D1","Tle D2"], heureDebut:"08:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"examen", note:"Mardi 14 - Vendredi 17 avril"},
-  {id:"d69", date:"2025-04-18", matiere:"TIC-IR",       classes:["Tle D1","Tle D2"], heureDebut:"07:00", heureFin:"11:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d70", date:"2025-04-22", matiere:"Anglais",      classes:["Tle D1","Tle D2"], heureDebut:"14:00", heureFin:"18:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d71", date:"2025-04-25", matiere:"Histoire-Géo", classes:["Tle D1","Tle D2"], heureDebut:"07:00", heureFin:"11:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d72", date:"2025-04-30", matiere:"Sortie récréative", classes:["Tle D1","Tle D2"], heureDebut:"08:00", heureFin:"17:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"sortie"},
-  {id:"d73", date:"2025-05-02", matiere:"SVT",          classes:["Tle D1","Tle D2"], heureDebut:"07:00", heureFin:"11:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d74", date:"2025-05-07", matiere:"PC",           classes:["Tle D1","Tle D2"], heureDebut:"14:00", heureFin:"18:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d75", date:"2025-05-09", matiere:"Français",     classes:["Tle D1","Tle D2"], heureDebut:"07:00", heureFin:"11:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-  {id:"d76", date:"2025-05-14", matiere:"Maths",        classes:["Tle D1","Tle D2"], heureDebut:"14:00", heureFin:"18:00", professeur:"", trimestre:3, anneeId:"2025-2026", type:"devoir"},
-]
-
-const CLASSES_NIVEAUX = ["6e","5e","4e","3e","2de","1re","Tle"]
-const TOUTES_CLASSES = ["6e A","6e B","6e C","6e D","5e A","5e B","5e C","5e D","4e A","4e B","4e C","3e A","3e B","3e C","2de C1","2de C2","1re D1","1re D2","Tle D1","Tle D2"]
 const MATIERES_LIST = ["Français","Maths","Anglais","Histoire-Géo","SVT","PC","IR","TIC","EC","Philo","Philo-PC","SVT-Philo","TIC-EC","EC-IR","Oral d'anglais","Examen Spécial G9","Composition","Sortie récréative","Autre"]
 
 const TYPE_CONFIG: Record<string, {label:string, color:string, bg:string}> = {
@@ -114,15 +28,6 @@ const TYPE_CONFIG: Record<string, {label:string, color:string, bg:string}> = {
   examen:      {label:"Examen",      color:"#dc2626", bg:"#fef2f2"},
   sortie:      {label:"Sortie",      color:"#059669", bg:"#f0fdf4"},
   autre:       {label:"Autre",       color:"#888",    bg:"#f9f9f9"},
-}
-
-function useLS<T>(key:string,init:T):[T,(v:T)=>void]{
-  const [s,ss]=useState<T>(()=>{
-    if(typeof window==='undefined')return init
-    try{const x=localStorage.getItem('edu_'+key);return x?JSON.parse(x):init}catch{return init}
-  })
-  const set=(v:T)=>{ss(v);if(typeof window!=='undefined')localStorage.setItem('edu_'+key,JSON.stringify(v))}
-  return [s,set]
 }
 
 function jToDate(d:string){
@@ -187,10 +92,13 @@ function Toast({msg,type}:{msg:string,type:string}){
 }
 
 // ─── COMPOSANT PRINCIPAL ─────────────────────────────────────────────────────
-export default function ProgrammeDevoirs({ role="eleve", classeEleve="" }: { role?: string, classeEleve?: string }) {
-  const [devoirs, setDevoirs] = useLS<Devoir[]>('devoirs', DEVOIRS_INIT)
+export default function ProgrammeDevoirs({ role="eleve" }: { role?: string }) {
+  const [loading, setLoading] = useState(true)
+  const [devoirs, setDevoirs] = useState<Devoir[]>([])
+  const [classes, setClasses] = useState<Classe[]>([])
+  const [monClasseId, setMonClasseId] = useState<string|null>(null)
   const [filterNiveau, setFilterNiveau] = useState("Tous")
-  const [filterClasse, setFilterClasse] = useState(classeEleve || "Toutes")
+  const [filterClasse, setFilterClasse] = useState("Toutes")
   const [filterType, setFilterType] = useState("Tous")
   const [viewMode, setViewMode] = useState<"liste"|"calendrier">("liste")
   const [modal, setModal] = useState<"add"|"edit"|null>(null)
@@ -198,25 +106,42 @@ export default function ProgrammeDevoirs({ role="eleve", classeEleve="" }: { rol
   const [toast, setToast] = useState<any>(null)
   const [form, setForm] = useState<Partial<Devoir>>({})
   const [selectedClasses, setSelectedClasses] = useState<string[]>([])
+  const [saving, setSaving] = useState(false)
 
-  const canEdit = role === "professeur" || role === "admin"
+  const canEdit = role === "professeur" || role === "admin" || role === "super_admin"
+  const niveaux = useMemo(() => [...new Set(classes.map(c=>c.niveau))], [classes])
 
   const toast2 = (msg:string,type="success")=>{setToast({msg,type});setTimeout(()=>setToast(null),3000)}
 
-  const nid = ()=>`d${Date.now()}`
+  const charger = async () => {
+    setLoading(true)
+    try {
+      const reqs = [authFetch('/api/devoirs'), authFetch('/api/classes')]
+      if (role === "eleve") reqs.push(authFetch('/api/eleves'))
+      const [rd, rc, re] = await Promise.all(reqs)
+      const [dd, dc, de] = await Promise.all([rd.json(), rc.json(), re ? re.json() : Promise.resolve(null)])
+      if (dd.success) setDevoirs(dd.data || [])
+      if (dc.success) setClasses(dc.data || [])
+      if (de?.success) setMonClasseId((de.data || [])[0]?.classeId || null)
+    } catch {
+      toast2("Erreur de chargement", "error")
+    }
+    setLoading(false)
+  }
+  useEffect(() => { charger() }, [role])
 
   // Filtrage
   const filtered = useMemo(()=>{
     return devoirs
       .filter(d=>{
-        if(classeEleve) return d.classes.some(c=>c===classeEleve)
-        if(filterClasse!=="Toutes") return d.classes.some(c=>c===filterClasse)
-        if(filterNiveau!=="Tous") return d.classes.some(c=>c.startsWith(filterNiveau))
+        if(role==="eleve") return monClasseId ? d.classes.includes(monClasseId) : false
+        if(filterClasse!=="Toutes") return d.classes.includes(filterClasse)
+        if(filterNiveau!=="Tous") return d.classes.some(cid=>classes.find(c=>c.id===cid)?.niveau===filterNiveau)
         return true
       })
       .filter(d=> filterType==="Tous" || d.type===filterType)
       .sort((a,b)=>a.date.localeCompare(b.date))
-  },[devoirs,filterClasse,filterNiveau,filterType,classeEleve])
+  },[devoirs,filterClasse,filterNiveau,filterType,role,monClasseId,classes])
 
   // Grouper par mois
   const grouped = useMemo(()=>{
@@ -234,31 +159,45 @@ export default function ProgrammeDevoirs({ role="eleve", classeEleve="" }: { rol
     return new Date(parseInt(y),parseInt(mo)-1,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'})
   }
 
-  const saveDevoir = ()=>{
+  const nomClasse = (id:string) => classes.find(c=>c.id===id)?.nom || "?"
+
+  const saveDevoir = async ()=>{
     if(!form.date||!form.matiere||selectedClasses.length===0) return toast2("Date, matière et classe(s) requis","error")
-    const d:Devoir={
-      id: modal==="add" ? nid() : form.id!,
-      date: form.date!,
-      matiere: form.matiere!,
-      classes: selectedClasses,
-      heureDebut: form.heureDebut||"08:00",
-      heureFin: form.heureFin||"10:00",
-      professeur: form.professeur||"",
-      trimestre: form.trimestre||3,
-      anneeId: form.anneeId||"2025-2026",
-      type: form.type||"devoir",
-      note: form.note||"",
+    setSaving(true)
+    try {
+      const payload = {
+        id: form.id,
+        date: form.date, matiere: form.matiere, classes: selectedClasses,
+        heureDebut: form.heureDebut||"08:00", heureFin: form.heureFin||"10:00",
+        professeur: form.professeur||"", trimestre: form.trimestre||3,
+        anneeId: form.anneeId||"2025-2026", type: form.type||"devoir", note: form.note||"",
+      }
+      const res = await authFetch('/api/devoirs', {
+        method: modal==="add" ? 'POST' : 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      await charger()
+      toast2(modal==="add"?"Devoir ajouté ✓":"Devoir modifié ✓")
+      setModal(null); setForm({}); setSelectedClasses([])
+    } catch (e:any) {
+      toast2(e.message || "Erreur lors de l'enregistrement", "error")
     }
-    if(modal==="add") setDevoirs([...devoirs,d])
-    else setDevoirs(devoirs.map(x=>x.id===d.id?d:x))
-    toast2(modal==="add"?"Devoir ajouté ✓":"Devoir modifié ✓")
-    setModal(null); setForm({}); setSelectedClasses([])
+    setSaving(false)
   }
 
   const deleteDevoir = (id:string)=>{
-    setConfirm({msg:"Supprimer ce devoir définitivement ?", onOui:()=>{
-      setDevoirs(devoirs.filter(d=>d.id!==id))
-      toast2("Devoir supprimé","error")
+    setConfirm({msg:"Supprimer ce devoir définitivement ?", onOui: async ()=>{
+      try {
+        const res = await authFetch(`/api/devoirs?id=${id}`, { method: 'DELETE' })
+        if (!res.ok) throw new Error()
+        await charger()
+        toast2("Devoir supprimé","error")
+      } catch {
+        toast2("Erreur lors de la suppression","error")
+      }
       setConfirm(null)
     }})
   }
@@ -280,7 +219,7 @@ export default function ProgrammeDevoirs({ role="eleve", classeEleve="" }: { rol
   }
 
   const toggleNiveau = (n:string)=>{
-    const cls = TOUTES_CLASSES.filter(c=>c.startsWith(n))
+    const cls = classes.filter(c=>c.niveau===n).map(c=>c.id)
     const allOn = cls.every(c=>selectedClasses.includes(c))
     setSelectedClasses(prev=>{ if(allOn) return prev.filter(c=>!cls.includes(c)); return prev.concat(cls.filter(c=>!prev.includes(c))); })
   }
@@ -288,8 +227,11 @@ export default function ProgrammeDevoirs({ role="eleve", classeEleve="" }: { rol
   // Devoirs à venir dans 3j (pour alertes)
   const alertes = devoirs.filter(d=>{
     const j=daysUntil(d.date)
-    return j>=0 && j<=3 && (classeEleve ? d.classes.includes(classeEleve) : true)
+    if (j<0 || j>3) return false
+    return role==="eleve" ? (monClasseId ? d.classes.includes(monClasseId) : false) : true
   })
+
+  if (loading) return <p style={{textAlign:"center",color:"#aaa",padding:60}}>⏳ Chargement...</p>
 
   return (
     <div>
@@ -304,7 +246,7 @@ export default function ProgrammeDevoirs({ role="eleve", classeEleve="" }: { rol
             📅 Programme des devoirs
           </h1>
           <p style={{fontSize:13,color:"#888",margin:0}}>
-            3e trimestre 2025-2026 · {filtered.length} épreuve{filtered.length>1?"s":""}
+            {filtered.length} épreuve{filtered.length>1?"s":""}
           </p>
         </div>
         {canEdit && (
@@ -321,7 +263,7 @@ export default function ProgrammeDevoirs({ role="eleve", classeEleve="" }: { rol
           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
             {alertes.map(d=>(
               <div key={d.id} style={{background:"#fff",borderRadius:8,padding:"6px 12px",border:"1px solid #fbbf24",fontSize:12}}>
-                <strong>{d.matiere}</strong> · {d.classes.join(", ")} · {formatDate(d.date).split(" ").slice(0,2).join(" ")}
+                <strong>{d.matiere}</strong> · {d.classes.map(nomClasse).join(", ")} · {formatDate(d.date).split(" ").slice(0,2).join(" ")}
                 <span style={{marginLeft:6}}><AlertBadge days={daysUntil(d.date)}/></span>
               </div>
             ))}
@@ -330,20 +272,20 @@ export default function ProgrammeDevoirs({ role="eleve", classeEleve="" }: { rol
       )}
 
       {/* Filtres */}
-      {!classeEleve && (
+      {role!=="eleve" && (
         <div style={{background:"#f8f9ff",borderRadius:12,padding:"12px 16px",marginBottom:20,display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
           <div>
             <label style={{fontSize:11,color:"#888",fontWeight:500,display:"block",marginBottom:3}}>NIVEAU</label>
             <select style={SEL} value={filterNiveau} onChange={e=>{setFilterNiveau(e.target.value);setFilterClasse("Toutes")}}>
               <option>Tous</option>
-              {CLASSES_NIVEAUX.map(n=><option key={n}>{n}</option>)}
+              {niveaux.map(n=><option key={n}>{n}</option>)}
             </select>
           </div>
           <div>
             <label style={{fontSize:11,color:"#888",fontWeight:500,display:"block",marginBottom:3}}>CLASSE</label>
             <select style={SEL} value={filterClasse} onChange={e=>setFilterClasse(e.target.value)}>
-              <option>Toutes</option>
-              {TOUTES_CLASSES.filter(c=>filterNiveau==="Tous"||c.startsWith(filterNiveau)).map(c=><option key={c}>{c}</option>)}
+              <option value="Toutes">Toutes</option>
+              {classes.filter(c=>filterNiveau==="Tous"||c.niveau===filterNiveau).map(c=><option key={c.id} value={c.id}>{c.nom}</option>)}
             </select>
           </div>
           <div>
@@ -400,7 +342,7 @@ export default function ProgrammeDevoirs({ role="eleve", classeEleve="" }: { rol
                       <span style={{fontSize:12,color:"#666"}}>🕐 {d.heureDebut}–{d.heureFin}</span>
                       <span style={{fontSize:12,color:"#666"}}>·</span>
                       <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-                        {d.classes.map(c=><span key={c} style={{fontSize:11,padding:"1px 6px",borderRadius:4,background:"#f3f4f6",color:"#555",fontWeight:500}}>{c}</span>)}
+                        {d.classes.map(cid=><span key={cid} style={{fontSize:11,padding:"1px 6px",borderRadius:4,background:"#f3f4f6",color:"#555",fontWeight:500}}>{nomClasse(cid)}</span>)}
                       </div>
                       {d.professeur && <span style={{fontSize:12,color:"#888"}}>· {d.professeur}</span>}
                     </div>
@@ -465,9 +407,9 @@ export default function ProgrammeDevoirs({ role="eleve", classeEleve="" }: { rol
           <div style={{margin:"14px 0"}}>
             <label style={LBL}>Classes concernées * ({selectedClasses.length} sélectionnée{selectedClasses.length>1?"s":""})</label>
             <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
-              {CLASSES_NIVEAUX.map(n=>{
-                const cls=TOUTES_CLASSES.filter(c=>c.startsWith(n))
-                const allOn=cls.every(c=>selectedClasses.includes(c))
+              {niveaux.map(n=>{
+                const cls=classes.filter(c=>c.niveau===n).map(c=>c.id)
+                const allOn=cls.length>0 && cls.every(c=>selectedClasses.includes(c))
                 return(
                   <button key={n} onClick={()=>toggleNiveau(n)} style={{padding:"4px 12px",borderRadius:6,fontSize:12,cursor:"pointer",background:allOn?"#1a1a2e":"#f3f4f6",color:allOn?"#fff":"#555",border:"none",fontWeight:500}}>
                     Tout {n}
@@ -476,11 +418,12 @@ export default function ProgrammeDevoirs({ role="eleve", classeEleve="" }: { rol
               })}
             </div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {TOUTES_CLASSES.map(c=>{
-                const on=selectedClasses.includes(c)
+              {classes.length===0 && <p style={{fontSize:12,color:"#aaa",margin:0}}>Aucune classe — créez-en une dans « Classes & Profs ».</p>}
+              {classes.map(c=>{
+                const on=selectedClasses.includes(c.id)
                 return(
-                  <button key={c} onClick={()=>toggleClass(c)} style={{padding:"4px 10px",borderRadius:6,fontSize:11,cursor:"pointer",background:on?"#2563eb":"#f9f9f9",color:on?"#fff":"#555",border:`1px solid ${on?"#2563eb":"#e5e7eb"}`,fontWeight:on?600:400}}>
-                    {c}
+                  <button key={c.id} onClick={()=>toggleClass(c.id)} style={{padding:"4px 10px",borderRadius:6,fontSize:11,cursor:"pointer",background:on?"#2563eb":"#f9f9f9",color:on?"#fff":"#555",border:`1px solid ${on?"#2563eb":"#e5e7eb"}`,fontWeight:on?600:400}}>
+                    {c.nom}
                   </button>
                 )
               })}
@@ -494,7 +437,7 @@ export default function ProgrammeDevoirs({ role="eleve", classeEleve="" }: { rol
 
           <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
             <button onClick={()=>setModal(null)} style={{padding:"9px 20px",background:"#fff",border:"1px solid #e5e7eb",borderRadius:8,cursor:"pointer",fontSize:13}}>Annuler</button>
-            <button onClick={saveDevoir} style={{padding:"9px 20px",background:"#1a1a2e",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600}}>Enregistrer</button>
+            <button onClick={saveDevoir} disabled={saving} style={{padding:"9px 20px",background:"#1a1a2e",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600}}>{saving?"⏳...":"Enregistrer"}</button>
           </div>
         </Modal>
       )}
