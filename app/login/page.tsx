@@ -32,7 +32,12 @@ export default function LoginPage() {
         return
       }
 
-      // Stocker le token
+      // Stocker le token. On purge tout contexte "école active" laissé par un
+      // précédent super administrateur (bouton « Gérer cette école ») : sans
+      // cela, un nouveau compte connecté dans le même navigateur pourrait
+      // hériter à tort de ce contexte.
+      localStorage.removeItem('activeEcoleId')
+      localStorage.removeItem('activeEcoleNom')
       localStorage.setItem('accessToken', data.accessToken)
       localStorage.setItem('user', JSON.stringify(data.user))
 

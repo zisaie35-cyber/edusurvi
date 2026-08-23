@@ -22,10 +22,20 @@ export default function DashboardPage() {
       return
     }
     try {
-      setUser(JSON.parse(stored))
-      const id = localStorage.getItem('activeEcoleId')
-      const nom = localStorage.getItem('activeEcoleNom')
-      if (id) setActiveEcole({ id, nom: nom || '' })
+      const parsedUser = JSON.parse(stored)
+      setUser(parsedUser)
+      // Le contexte "école active" (posé par « Gérer cette école ») n'a de
+      // sens que pour un super administrateur ; pour tout autre compte, on
+      // le purge par sécurité (ex. résidu d'une session précédente dans le
+      // même navigateur).
+      if (parsedUser.role === 'super_admin') {
+        const id = localStorage.getItem('activeEcoleId')
+        const nom = localStorage.getItem('activeEcoleNom')
+        if (id) setActiveEcole({ id, nom: nom || '' })
+      } else {
+        localStorage.removeItem('activeEcoleId')
+        localStorage.removeItem('activeEcoleNom')
+      }
     } catch {
       router.push('/login')
     }
