@@ -11,7 +11,7 @@ const supabase = createClient(
 // ── GET /api/classes — lister les classes de l'école ──────────────────────────
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireSession(request, ['admin', 'super_admin', 'professeur', 'surveillant'])
+    const session = await requireSession(request, ['admin', 'super_admin', 'professeur', 'surveillant', 'eleve'])
     const ecoleId = resolveEcoleId(session, request)
     if (!ecoleId) {
       return NextResponse.json({ error: 'Compte non rattaché à une école (sélectionnez une école)' }, { status: 403 })

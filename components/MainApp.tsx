@@ -7,6 +7,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
+import { authFetch } from '@/lib/apiClient'
 const SaisieApp = dynamic(() => import('./SaisieApp'), { ssr: false })
 const AdminClasses = dynamic(() => import('./AdminClasses'), { ssr: false })
 const ProgrammeDevoirs = dynamic(() => import('./ProgrammeDevoirs'), { ssr: false })
@@ -15,80 +16,13 @@ const PointsDashboard = dynamic(() => import('./PointsModule').then(m => ({ defa
 const AdminPoints = dynamic(() => import('./PointsModule').then(m => ({ default: m.AdminPoints })), { ssr: false })
 const ManuelUtilisation = dynamic(() => import('./ManuelUtilisation'), { ssr: false })
 
-// Données de démonstration (remplacées progressivement par les APIs)
-const SEED = {
-  users: [
-    { id:1, nom:"Diallo", prenom:"Mamadou", email:"admin@ecole.bf", password:"admin123", role:"admin", actif:true, avatar:"MD" },
-    { id:2, nom:"Ouédraogo", prenom:"Safi", email:"prof1@ecole.bf", password:"prof123", role:"professeur", actif:true, avatar:"SO" },
-    { id:3, nom:"Sawadogo", prenom:"Ismaël", email:"prof2@ecole.bf", password:"prof123", role:"professeur", actif:true, avatar:"IS" },
-    { id:4, nom:"Kaboré", prenom:"Adèle", email:"surv@ecole.bf", password:"surv123", role:"surveillant", actif:true, avatar:"AK" },
-    { id:5, nom:"Traoré", prenom:"Aïcha", email:"eleve1@ecole.bf", password:"eleve123", role:"eleve", actif:true, avatar:"AT", eleveId:1 },
-  ],
-  classes: [
-    { id:1, nom:"3ème A", niveau:"3ème", effectif:28 },
-    { id:2, nom:"4ème B", niveau:"4ème", effectif:31 },
-    { id:3, nom:"5ème A", niveau:"5ème", effectif:25 },
-  ],
-  matieres: [
-    { id:1, nom:"Mathématiques", coef:3, couleur:"#2563eb" },
-    { id:2, nom:"Français", coef:3, couleur:"#7c3aed" },
-    { id:3, nom:"SVT", coef:2, couleur:"#059669" },
-    { id:4, nom:"Histoire-Géo", coef:2, couleur:"#d97706" },
-    { id:5, nom:"Physique-Chimie", coef:2, couleur:"#dc2626" },
-    { id:6, nom:"Anglais", coef:2, couleur:"#0891b2" },
-  ],
-  eleves: [
-    { id:1, nom:"Traoré", prenom:"Aïcha", matricule:"2024-001", classe:1, dateNaissance:"2009-03-14", nationalite:"Burkinabè", adresse:"Secteur 15, Ouagadougou" },
-    { id:2, nom:"Compaoré", prenom:"Théo", matricule:"2024-002", classe:1, dateNaissance:"2008-11-22", nationalite:"Burkinabè", adresse:"Secteur 7, Ouagadougou" },
-    { id:3, nom:"Zongo", prenom:"Fatima", matricule:"2024-003", classe:2, dateNaissance:"2009-06-05", nationalite:"Burkinabè", adresse:"Pissy, Ouagadougou" },
-    { id:4, nom:"Ouédraogo", prenom:"Brice", matricule:"2024-004", classe:1, dateNaissance:"2009-01-18", nationalite:"Burkinabè", adresse:"Gounghin, Ouagadougou" },
-    { id:5, nom:"Sawadogo", prenom:"Mariam", matricule:"2024-005", classe:2, dateNaissance:"2008-09-30", nationalite:"Burkinabè", adresse:"Secteur 22, Ouagadougou" },
-    { id:6, nom:"Kaboré", prenom:"Luc", matricule:"2024-006", classe:3, dateNaissance:"2010-02-11", nationalite:"Burkinabè", adresse:"Tampouy, Ouagadougou" },
-    { id:7, nom:"Diallo", prenom:"Salimata", matricule:"2024-007", classe:1, dateNaissance:"2009-07-25", nationalite:"Burkinabè", adresse:"Secteur 28, Ouagadougou" },
-    { id:8, nom:"Nikiema", prenom:"Joël", matricule:"2024-008", classe:2, dateNaissance:"2008-12-03", nationalite:"Burkinabè", adresse:"Bilbalogho, Ouagadougou" },
-    { id:9, nom:"Tapsoba", prenom:"Reine", matricule:"2024-009", classe:3, dateNaissance:"2010-04-17", nationalite:"Burkinabè", adresse:"Secteur 30, Ouagadougou" },
-    { id:10, nom:"Ouattara", prenom:"Issa", matricule:"2024-010", classe:1, dateNaissance:"2009-08-09", nationalite:"Burkinabè", adresse:"Dassasgo, Ouagadougou" },
-  ],
-  notes: [
-    {id:1, eleveId:1, matiereId:1, valeur:15, typeEval:"Devoir 1", trimestre:1, professeurId:2, commentaire:"Bon travail"},
-    {id:2, eleveId:1, matiereId:2, valeur:14, typeEval:"Devoir 1", trimestre:1, professeurId:2, commentaire:"Bien"},
-    {id:3, eleveId:1, matiereId:3, valeur:12, typeEval:"Devoir 1", trimestre:1, professeurId:3, commentaire:""},
-    {id:4, eleveId:2, matiereId:1, valeur:9, typeEval:"Devoir 1", trimestre:1, professeurId:2, commentaire:"Des efforts à faire"},
-    {id:5, eleveId:3, matiereId:1, valeur:18, typeEval:"Devoir 1", trimestre:1, professeurId:2, commentaire:"Excellent"},
-  ],
-  sanctions: [
-    { id:1, eleveId:2, type:"retenue", motif:"Bavardage répété", description:"A été renvoyé de cours.", dateDebut:"2024-10-15", dateFin:"2024-10-16", surveillantId:4 },
-  ],
-  retards: [
-    { id:1, eleveId:1, date:"2024-10-08", heureArrivee:"08:25", motif:"Transport", justifie:true, surveillantId:4 },
-    { id:2, eleveId:2, date:"2024-10-10", heureArrivee:"09:00", motif:"Réveil tardif", justifie:false, surveillantId:4 },
-  ],
-  absences: [
-    { id:1, eleveId:3, dateDebut:"2024-10-02", dateFin:"2024-10-03", motif:"Maladie", justifiee:true, surveillantId:4 },
-  ],
-  logs: [
-    { id:1, userId:2, action:"Notes saisies pour Traoré Aïcha - Mathématiques T1", date:"2024-10-22 09:14" },
-    { id:2, userId:4, action:"Sanction enregistrée pour Compaoré Théo", date:"2024-10-22 10:30" },
-  ]
-}
-
 const avg = (arr: number[]) => arr.length ? (arr.reduce((s,v)=>s+v,0)/arr.length).toFixed(2) : "-"
 const roleLabel: Record<string,string> = { admin:"Administrateur", professeur:"Professeur", surveillant:"Surveillant", eleve:"Élève" }
 const roleColor: Record<string,string> = { admin:"#7c3aed", professeur:"#2563eb", surveillant:"#d97706", eleve:"#059669" }
 const sanctionLabel: Record<string,string> = { avertissement:"Avertissement", retenue:"Retenue", exclusion_temp:"Exclusion temporaire", exclusion_def:"Exclusion définitive" }
 const sanctionColor: Record<string,string> = { avertissement:"#d97706", retenue:"#dc2626", exclusion_temp:"#b91c1c", exclusion_def:"#7f1d1d" }
 
-function initData() {
-  if (typeof window === 'undefined') return SEED
-  const stored = localStorage.getItem("school_data")
-  if (stored) return JSON.parse(stored)
-  localStorage.setItem("school_data", JSON.stringify(SEED))
-  return SEED
-}
-
-function saveData(data: any) {
-  if (typeof window !== 'undefined') localStorage.setItem("school_data", JSON.stringify(data))
-}
+function hashId(id: string) { let h=0; for (let i=0;i<id.length;i++){h=(h*31+id.charCodeAt(i))|0} return Math.abs(h) }
 
 // ─── Composants partagés ──────────────────────────────────────────────────────
 function PageTitle({ children }: { children: React.ReactNode }) {
@@ -115,10 +49,14 @@ function Badge({ label, color="#2563eb" }: any) {
   return <span style={{display:"inline-block",padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:500,background:color+"22",color}}>{label}</span>
 }
 
+function Loading() {
+  return <p style={{textAlign:"center",color:"#aaa",padding:60}}>⏳ Chargement...</p>
+}
+
 function EleveAvatar({ eleve, size=36 }: any) {
-  const initials = `${eleve.prenom[0]}${eleve.nom[0]}`
+  const initials = `${eleve.prenom?.[0]||""}${eleve.nom?.[0]||""}`
   const colors = ["#2563eb","#7c3aed","#059669","#d97706","#dc2626","#0891b2"]
-  const bg = colors[eleve.id % colors.length]
+  const bg = colors[hashId(String(eleve.id))%colors.length]
   return (
     <div style={{width:size,height:size,borderRadius:"50%",background:bg,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:size*0.38,flexShrink:0}}>
       {initials}
@@ -199,21 +137,50 @@ function TableComp({ cols, rows, emptyMsg="Aucune donnée" }: any) {
 }
 
 // ─── Dashboards ───────────────────────────────────────────────────────────────
-function AdminHome({ data }: any) {
+function AdminHome() {
+  const [loading, setLoading] = useState(true)
+  const [classes, setClasses] = useState<any[]>([])
+  const [eleves, setEleves] = useState<any[]>([])
+  const [profs, setProfs] = useState<any[]>([])
+  const [sanctions, setSanctions] = useState<any[]>([])
+  const [absences, setAbsences] = useState<any[]>([])
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true)
+      try {
+        const [rc, re, rp, rs, ra] = await Promise.all([
+          authFetch('/api/classes'), authFetch('/api/eleves'), authFetch('/api/professeurs'),
+          authFetch('/api/sanctions'), authFetch('/api/absences'),
+        ])
+        const [dc, de, dp, ds, da] = await Promise.all([rc.json(), re.json(), rp.json(), rs.json(), ra.json()])
+        if (dc.success) setClasses(dc.data || [])
+        if (de.success) setEleves(de.data || [])
+        if (dp.success) setProfs(dp.data || [])
+        if (ds.success) setSanctions(ds.data || [])
+        if (da.success) setAbsences(da.data || [])
+      } catch {}
+      setLoading(false)
+    })()
+  }, [])
+
+  if (loading) return <Loading/>
+
   return (
     <div>
       <PageTitle>Tableau de bord</PageTitle>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:16,marginBottom:24}}>
-        <StatCard icon="👤" label="Élèves inscrits" value={data.eleves.length} color="#2563eb"/>
-        <StatCard icon="👩‍🏫" label="Professeurs" value={data.users.filter((u:any)=>u.role==="professeur").length} color="#7c3aed"/>
-        <StatCard icon="🏛" label="Classes" value={data.classes.length} color="#059669"/>
-        <StatCard icon="⚠️" label="Sanctions" value={data.sanctions.length} color="#d97706"/>
+        <StatCard icon="👤" label="Élèves inscrits" value={eleves.length} color="#2563eb"/>
+        <StatCard icon="👩‍🏫" label="Professeurs" value={profs.length} color="#7c3aed"/>
+        <StatCard icon="🏛" label="Classes" value={classes.length} color="#059669"/>
+        <StatCard icon="⚠️" label="Sanctions" value={sanctions.length} color="#d97706"/>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
-        <Card>
-          <h3 style={{fontSize:15,fontWeight:700,marginBottom:16}}>Absences récentes</h3>
-          {data.absences.slice(0,3).map((a:any)=>{
-            const el = data.eleves.find((e:any)=>e.id===a.eleveId)
+      <Card>
+        <h3 style={{fontSize:15,fontWeight:700,marginBottom:16}}>Absences récentes</h3>
+        {absences.length === 0
+          ? <p style={{textAlign:"center",color:"#aaa",padding:20}}>Aucune absence enregistrée</p>
+          : absences.slice(0,5).map((a:any)=>{
+            const el = eleves.find((e:any)=>e.id===a.eleveId)
             return el ? (
               <div key={a.id} style={{display:"flex",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #f5f5f5"}}>
                 <EleveAvatar eleve={el} size={30}/>
@@ -224,50 +191,84 @@ function AdminHome({ data }: any) {
               </div>
             ) : null
           })}
-        </Card>
-        <Card>
-          <h3 style={{fontSize:15,fontWeight:700,marginBottom:16}}>Activité récente</h3>
-          {data.logs.map((l:any)=>{
-            const u = data.users.find((x:any)=>x.id===l.userId)
-            return (
-              <div key={l.id} style={{display:"flex",alignItems:"flex-start",padding:"10px 0",borderBottom:"1px solid #f5f5f5"}}>
-                <div style={{width:28,height:28,borderRadius:"50%",background:roleColor[u?.role||"admin"],color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:11,flexShrink:0}}>{u?.avatar}</div>
-                <div style={{marginLeft:10}}>
-                  <p style={{margin:0,fontSize:12}}>{l.action}</p>
-                  <p style={{margin:0,fontSize:11,color:"#aaa"}}>{l.date}</p>
-                </div>
-              </div>
-            )
-          })}
-        </Card>
-      </div>
+      </Card>
     </div>
   )
 }
 
-function ElevesPageComp({ data, update, showToast }: any) {
+function ElevesPageComp({ role, showToast }: any) {
+  const peutModifier = role === "admin" || role === "super_admin"
+  const [loading, setLoading] = useState(true)
+  const [classes, setClasses] = useState<any[]>([])
+  const [eleves, setEleves] = useState<any[]>([])
   const [search, setSearch] = useState("")
-  const [modal, setModal] = useState(false)
-  const [form, setForm] = useState({nom:"",prenom:"",matricule:"",classe:1,dateNaissance:"",nationalite:"Burkinabè",adresse:""})
+  const [modal, setModal] = useState<"add"|"edit"|null>(null)
+  const [form, setForm] = useState<any>({})
+  const [saving, setSaving] = useState(false)
 
-  const filtered = data.eleves.filter((e:any) =>
+  const charger = async () => {
+    setLoading(true)
+    try {
+      const [rc, re] = await Promise.all([authFetch('/api/classes'), authFetch('/api/eleves')])
+      const [dc, de] = await Promise.all([rc.json(), re.json()])
+      if (dc.success) setClasses(dc.data || [])
+      if (de.success) setEleves(de.data || [])
+    } catch { showToast("Erreur de chargement","error") }
+    setLoading(false)
+  }
+  useEffect(() => { charger() }, [])
+
+  const filtered = eleves.filter((e:any) =>
     `${e.nom} ${e.prenom} ${e.matricule}`.toLowerCase().includes(search.toLowerCase())
   )
 
-  const save = () => {
-    if (!form.nom || !form.prenom) return showToast("Nom et prénom requis","error")
-    const newEleve = { ...form, id: Date.now(), classe: parseInt(String(form.classe)), photo:null }
-    update({ ...data, eleves:[...data.eleves,newEleve] })
-    setModal(false)
-    showToast("Élève ajouté avec succès")
+  const save = async () => {
+    if (!form.nom || !form.prenom || !form.matricule) return showToast("Nom, prénom et matricule requis","error")
+    setSaving(true)
+    try {
+      const payload = {
+        id: form.id, nom: form.nom, prenom: form.prenom, matricule: form.matricule,
+        dateNaissance: form.dateNaissance || null, nationalite: form.nationalite,
+        adresse: form.adresse, classeId: form.classeId || null,
+      }
+      const res = await authFetch('/api/eleves', {
+        method: modal === "add" ? 'POST' : 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      await charger()
+      showToast(modal === "add" ? "Élève ajouté avec succès" : "Élève modifié avec succès")
+      setModal(null); setForm({})
+    } catch (e:any) {
+      showToast(e.message || "Erreur lors de l'enregistrement","error")
+    }
+    setSaving(false)
   }
+
+  const remove = async (e:any) => {
+    if (!confirm(`Supprimer ${e.prenom} ${e.nom} définitivement ?`)) return
+    try {
+      const res = await authFetch(`/api/eleves?id=${e.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+      await charger()
+      showToast("Élève supprimé","error")
+    } catch {
+      showToast("Erreur lors de la suppression","error")
+    }
+  }
+
+  if (loading) return <Loading/>
 
   return (
     <div>
       <PageTitle>Gestion des élèves</PageTitle>
       <div style={{display:"flex",gap:12,marginBottom:20}}>
         <input style={{flex:1,padding:"9px 12px",border:"1px solid #e5e7eb",borderRadius:8,fontSize:14}} placeholder="Rechercher un élève..." value={search} onChange={e=>setSearch(e.target.value)}/>
-        <button style={{padding:"9px 20px",background:"#2563eb",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:600,cursor:"pointer"}} onClick={()=>setModal(true)}>+ Ajouter</button>
+        {peutModifier && (
+          <button style={{padding:"9px 20px",background:"#2563eb",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:600,cursor:"pointer"}} onClick={()=>{setForm({nationalite:"Burkinabè"});setModal("add")}}>+ Ajouter</button>
+        )}
       </div>
       <Card>
         <TableComp
@@ -275,28 +276,35 @@ function ElevesPageComp({ data, update, showToast }: any) {
             {key:"avatar",label:"",render:(r:any)=><EleveAvatar eleve={r} size={32}/>},
             {key:"nom",label:"Nom",render:(r:any)=><strong>{r.nom} {r.prenom}</strong>},
             {key:"matricule",label:"Matricule",render:(r:any)=><code style={{fontSize:12,background:"#f5f5f5",padding:"2px 6px",borderRadius:4}}>{r.matricule}</code>},
-            {key:"classe",label:"Classe",render:(r:any)=>data.classes.find((c:any)=>c.id===r.classe)?.nom||"-"},
+            {key:"classe",label:"Classe",render:(r:any)=>classes.find((c:any)=>c.id===r.classeId)?.nom||"-"},
             {key:"nationalite",label:"Nationalité"},
+            ...(peutModifier ? [{key:"actions",label:"",render:(r:any)=>(
+              <div style={{display:"flex",gap:6}}>
+                <button style={{padding:"5px 10px",background:"#eff6ff",color:"#2563eb",border:"1px solid #bfdbfe",borderRadius:6,fontSize:12,cursor:"pointer"}} onClick={()=>{setForm(r);setModal("edit")}}>✏️</button>
+                <button style={{padding:"5px 10px",background:"#fef2f2",color:"#dc2626",border:"1px solid #fecaca",borderRadius:6,fontSize:12,cursor:"pointer"}} onClick={()=>remove(r)}>🗑️</button>
+              </div>
+            )}] : []),
           ]}
           rows={filtered}
         />
       </Card>
       {modal && (
-        <Modal title="Ajouter un élève" onClose={()=>setModal(false)}>
+        <Modal title={modal==="add" ? "Ajouter un élève" : "Modifier l'élève"} onClose={()=>setModal(null)}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-            <Input label="Prénom" value={form.prenom} onChange={(e:any)=>setForm({...form,prenom:e.target.value})}/>
-            <Input label="Nom" value={form.nom} onChange={(e:any)=>setForm({...form,nom:e.target.value})}/>
-            <Input label="Matricule" value={form.matricule} onChange={(e:any)=>setForm({...form,matricule:e.target.value})}/>
-            <Input label="Date de naissance" type="date" value={form.dateNaissance} onChange={(e:any)=>setForm({...form,dateNaissance:e.target.value})}/>
-            <Select label="Classe" value={form.classe} onChange={(e:any)=>setForm({...form,classe:e.target.value})}>
-              {data.classes.map((c:any)=><option key={c.id} value={c.id}>{c.nom}</option>)}
+            <Input label="Prénom" value={form.prenom||""} onChange={(e:any)=>setForm({...form,prenom:e.target.value})}/>
+            <Input label="Nom" value={form.nom||""} onChange={(e:any)=>setForm({...form,nom:e.target.value})}/>
+            <Input label="Matricule" value={form.matricule||""} onChange={(e:any)=>setForm({...form,matricule:e.target.value})}/>
+            <Input label="Date de naissance" type="date" value={form.dateNaissance||""} onChange={(e:any)=>setForm({...form,dateNaissance:e.target.value})}/>
+            <Select label="Classe" value={form.classeId||""} onChange={(e:any)=>setForm({...form,classeId:e.target.value})}>
+              <option value="">Sans classe</option>
+              {classes.map((c:any)=><option key={c.id} value={c.id}>{c.nom}</option>)}
             </Select>
-            <Input label="Nationalité" value={form.nationalite} onChange={(e:any)=>setForm({...form,nationalite:e.target.value})}/>
+            <Input label="Nationalité" value={form.nationalite||""} onChange={(e:any)=>setForm({...form,nationalite:e.target.value})}/>
           </div>
-          <Input label="Adresse" value={form.adresse} onChange={(e:any)=>setForm({...form,adresse:e.target.value})}/>
+          <Input label="Adresse" value={form.adresse||""} onChange={(e:any)=>setForm({...form,adresse:e.target.value})}/>
           <div style={{display:"flex",gap:12,justifyContent:"flex-end"}}>
-            <button style={{padding:"9px 20px",background:"#fff",color:"#444",border:"1px solid #e5e7eb",borderRadius:8,cursor:"pointer"}} onClick={()=>setModal(false)}>Annuler</button>
-            <button style={{padding:"9px 20px",background:"#2563eb",color:"#fff",border:"none",borderRadius:8,cursor:"pointer"}} onClick={save}>Enregistrer</button>
+            <button style={{padding:"9px 20px",background:"#fff",color:"#444",border:"1px solid #e5e7eb",borderRadius:8,cursor:"pointer"}} onClick={()=>setModal(null)}>Annuler</button>
+            <button style={{padding:"9px 20px",background:"#2563eb",color:"#fff",border:"none",borderRadius:8,cursor:"pointer"}} onClick={save} disabled={saving}>{saving?"⏳...":"Enregistrer"}</button>
           </div>
         </Modal>
       )}
@@ -304,17 +312,48 @@ function ElevesPageComp({ data, update, showToast }: any) {
   )
 }
 
-function SanctionsPageComp({ session, data, update, showToast }: any) {
+function SanctionsPageComp({ showToast }: any) {
+  const [loading, setLoading] = useState(true)
+  const [eleves, setEleves] = useState<any[]>([])
+  const [sanctions, setSanctions] = useState<any[]>([])
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState({ eleveId:"", type:"avertissement", motif:"", description:"", dateDebut:"", dateFin:"" })
+  const [saving, setSaving] = useState(false)
 
-  const save = () => {
-    if (!form.eleveId || !form.motif) return showToast("Champs requis manquants","error")
-    const newS = { id:Date.now(), eleveId:parseInt(form.eleveId), type:form.type, motif:form.motif, description:form.description, dateDebut:form.dateDebut, dateFin:form.dateFin||null, surveillantId:session.id }
-    update({...data, sanctions:[...data.sanctions, newS]})
-    showToast("Sanction enregistrée")
-    setModal(false)
+  const charger = async () => {
+    setLoading(true)
+    try {
+      const [re, rs] = await Promise.all([authFetch('/api/eleves'), authFetch('/api/sanctions')])
+      const [de, ds] = await Promise.all([re.json(), rs.json()])
+      if (de.success) setEleves(de.data || [])
+      if (ds.success) setSanctions(ds.data || [])
+    } catch { showToast("Erreur de chargement","error") }
+    setLoading(false)
   }
+  useEffect(() => { charger() }, [])
+
+  const save = async () => {
+    if (!form.eleveId || !form.motif || !form.dateDebut) return showToast("Champs requis manquants","error")
+    setSaving(true)
+    try {
+      const res = await authFetch('/api/sanctions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      await charger()
+      showToast("Sanction enregistrée")
+      setModal(false)
+      setForm({ eleveId:"", type:"avertissement", motif:"", description:"", dateDebut:"", dateFin:"" })
+    } catch (e:any) {
+      showToast(e.message || "Erreur lors de l'enregistrement","error")
+    }
+    setSaving(false)
+  }
+
+  if (loading) return <Loading/>
 
   return (
     <div>
@@ -325,12 +364,12 @@ function SanctionsPageComp({ session, data, update, showToast }: any) {
       <Card>
         <TableComp
           cols={[
-            {key:"el",label:"Élève",render:(r:any)=>{const el=data.eleves.find((e:any)=>e.id===r.eleveId);return el?`${el.prenom} ${el.nom}`:"-"}},
+            {key:"el",label:"Élève",render:(r:any)=>{const el=eleves.find((e:any)=>e.id===r.eleveId);return el?`${el.prenom} ${el.nom}`:"-"}},
             {key:"type",label:"Type",render:(r:any)=><Badge label={sanctionLabel[r.type]||r.type} color={sanctionColor[r.type]||"#888"}/>},
             {key:"motif",label:"Motif"},
             {key:"dateDebut",label:"Date"},
           ]}
-          rows={data.sanctions}
+          rows={sanctions}
           emptyMsg="Aucune sanction enregistrée"
         />
       </Card>
@@ -338,7 +377,7 @@ function SanctionsPageComp({ session, data, update, showToast }: any) {
         <Modal title="Nouvelle sanction" onClose={()=>setModal(false)}>
           <Select label="Élève" value={form.eleveId} onChange={(e:any)=>setForm({...form,eleveId:e.target.value})}>
             <option value="">Sélectionner un élève</option>
-            {data.eleves.map((e:any)=><option key={e.id} value={e.id}>{e.prenom} {e.nom}</option>)}
+            {eleves.map((e:any)=><option key={e.id} value={e.id}>{e.prenom} {e.nom}</option>)}
           </Select>
           <Select label="Type" value={form.type} onChange={(e:any)=>setForm({...form,type:e.target.value})}>
             <option value="avertissement">Avertissement</option>
@@ -354,7 +393,7 @@ function SanctionsPageComp({ session, data, update, showToast }: any) {
           </div>
           <div style={{display:"flex",gap:12,justifyContent:"flex-end"}}>
             <button style={{padding:"9px 20px",background:"#fff",border:"1px solid #e5e7eb",borderRadius:8,cursor:"pointer"}} onClick={()=>setModal(false)}>Annuler</button>
-            <button style={{padding:"9px 20px",background:"#2563eb",color:"#fff",border:"none",borderRadius:8,cursor:"pointer"}} onClick={save}>Enregistrer</button>
+            <button style={{padding:"9px 20px",background:"#2563eb",color:"#fff",border:"none",borderRadius:8,cursor:"pointer"}} onClick={save} disabled={saving}>{saving?"⏳...":"Enregistrer"}</button>
           </div>
         </Modal>
       )}
@@ -362,20 +401,93 @@ function SanctionsPageComp({ session, data, update, showToast }: any) {
   )
 }
 
-function EleveHome({ session, data }: any) {
-  const eleve = data.eleves.find((e:any)=>e.matricule===session.eleveMatricule)
+function DisciplinePage() {
+  const [loading, setLoading] = useState(true)
+  const [eleves, setEleves] = useState<any[]>([])
+  const [sanctions, setSanctions] = useState<any[]>([])
+  const [retards, setRetards] = useState<any[]>([])
+  const [absences, setAbsences] = useState<any[]>([])
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true)
+      try {
+        const [re, rs, rr, ra] = await Promise.all([
+          authFetch('/api/eleves'), authFetch('/api/sanctions'), authFetch('/api/retards'), authFetch('/api/absences'),
+        ])
+        const [de, ds, dr, da] = await Promise.all([re.json(), rs.json(), rr.json(), ra.json()])
+        if (de.success) setEleves(de.data || [])
+        if (ds.success) setSanctions(ds.data || [])
+        if (dr.success) setRetards(dr.data || [])
+        if (da.success) setAbsences(da.data || [])
+      } catch {}
+      setLoading(false)
+    })()
+  }, [])
+
+  if (loading) return <Loading/>
+
+  return (
+    <div>
+      <PageTitle>Discipline</PageTitle>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:20}}>
+        <StatCard icon="⚠️" label="Sanctions" value={sanctions.length} color="#d97706"/>
+        <StatCard icon="⏰" label="Retards" value={retards.length} color="#dc2626"/>
+        <StatCard icon="📅" label="Absences" value={absences.length} color="#7c3aed"/>
+      </div>
+      <Card>
+        <TableComp
+          cols={[
+            {key:"el",label:"Élève",render:(r:any)=>{const el=eleves.find((e:any)=>e.id===r.eleveId);return el?`${el.prenom} ${el.nom}`:"-"}},
+            {key:"type",label:"Type",render:(r:any)=><Badge label={sanctionLabel[r.type]||r.type} color={sanctionColor[r.type]||"#888"}/>},
+            {key:"motif",label:"Motif"},
+            {key:"dateDebut",label:"Date"},
+          ]}
+          rows={sanctions}
+          emptyMsg="Aucune sanction"
+        />
+      </Card>
+    </div>
+  )
+}
+
+function EleveHome() {
+  const [loading, setLoading] = useState(true)
+  const [eleve, setEleve] = useState<any>(null)
+  const [classe, setClasse] = useState<any>(null)
+  const [notes, setNotes] = useState<any[]>([])
+  const [absences, setAbsences] = useState<any[]>([])
+  const [retards, setRetards] = useState<any[]>([])
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true)
+      try {
+        const [re, rn, ra, rr, rc] = await Promise.all([
+          authFetch('/api/eleves'), authFetch('/api/notes'), authFetch('/api/absences'), authFetch('/api/retards'), authFetch('/api/classes'),
+        ])
+        const [de, dn, da, dr, dc] = await Promise.all([re.json(), rn.json(), ra.json(), rr.json(), rc.json()])
+        const moi = de.success ? (de.data || [])[0] || null : null
+        setEleve(moi)
+        if (dn.success) setNotes(dn.data || [])
+        if (da.success) setAbsences(da.data || [])
+        if (dr.success) setRetards(dr.data || [])
+        if (dc.success && moi) setClasse((dc.data || []).find((c:any)=>c.id===moi.classeId) || null)
+      } catch {}
+      setLoading(false)
+    })()
+  }, [])
+
+  if (loading) return <Loading/>
   if (!eleve) return <p>Profil introuvable</p>
-  const notes = data.notes.filter((n:any)=>n.eleveId===eleve.id)
-  const absences = data.absences.filter((a:any)=>a.eleveId===eleve.id)
-  const retards = data.retards.filter((r:any)=>r.eleveId===eleve.id)
-  const classe = data.classes.find((c:any)=>c.id===eleve.classe)
+
   return (
     <div>
       <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:28,background:"linear-gradient(135deg,#1a1a2e,#2563eb)",borderRadius:16,padding:"24px 28px",color:"#fff"}}>
         <EleveAvatar eleve={eleve} size={56}/>
         <div>
           <h1 style={{margin:0,fontSize:22,fontWeight:700}}>{eleve.prenom} {eleve.nom}</h1>
-          <p style={{margin:0,opacity:0.8,fontSize:14}}>{classe?.nom} · Matricule {eleve.matricule}</p>
+          <p style={{margin:0,opacity:0.8,fontSize:14}}>{classe?.nom || "Sans classe"} · Matricule {eleve.matricule}</p>
         </div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:16}}>
@@ -384,6 +496,59 @@ function EleveHome({ session, data }: any) {
         <StatCard icon="📅" label="Absences" value={absences.length} color="#dc2626"/>
         <StatCard icon="⏰" label="Retards" value={retards.length} color="#d97706"/>
       </div>
+    </div>
+  )
+}
+
+function MesNotesPage() {
+  const [loading, setLoading] = useState(true)
+  const [notes, setNotes] = useState<any[]>([])
+  const [matieres, setMatieres] = useState<any[]>([])
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true)
+      try {
+        const [rn, rm] = await Promise.all([authFetch('/api/notes'), authFetch('/api/matieres')])
+        const [dn, dm] = await Promise.all([rn.json(), rm.json()])
+        if (dn.success) setNotes(dn.data || [])
+        if (dm.success) setMatieres(dm.data || [])
+      } catch {}
+      setLoading(false)
+    })()
+  }, [])
+
+  if (loading) return <Loading/>
+
+  const matieresAvecNotes = matieres.filter((m:any)=>notes.some((n:any)=>n.matiereId===m.id))
+
+  return (
+    <div>
+      <PageTitle>Mes notes</PageTitle>
+      {matieresAvecNotes.length === 0 && <p style={{textAlign:"center",color:"#aaa",padding:40}}>Aucune note pour l'instant</p>}
+      {matieresAvecNotes.map((m:any)=>{
+        const mNotes = notes.filter((n:any)=>n.matiereId===m.id)
+        return (
+          <Card key={m.id} style={{marginBottom:12}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <div style={{width:10,height:10,borderRadius:"50%",background:m.couleur}}/>
+                <strong>{m.nom}</strong>
+                <span style={{fontSize:12,color:"#888"}}>coeff. {m.coefficient}</span>
+              </div>
+              <strong style={{color:parseFloat(avg(mNotes.map((n:any)=>n.valeur)))>=10?"#059669":"#dc2626"}}>{avg(mNotes.map((n:any)=>n.valeur))}/20</strong>
+            </div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {mNotes.map((n:any,i:number)=>(
+                <div key={i} style={{background:"#f8f9ff",borderRadius:8,padding:"8px 14px",textAlign:"center",minWidth:80}}>
+                  <p style={{margin:0,fontSize:18,fontWeight:700,color:n.valeur>=10?"#2563eb":"#dc2626"}}>{n.valeur}</p>
+                  <p style={{margin:0,fontSize:11,color:"#888"}}>{n.typeEval}</p>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )
+      })}
     </div>
   )
 }
@@ -431,13 +596,11 @@ function getNavItems(role: string) {
 // ─── App principale ───────────────────────────────────────────────────────────
 export default function MainApp({ initialUser, superAdminEcoleNom, onExitEcole }: { initialUser: any, superAdminEcoleNom?: string, onExitEcole?: () => void }) {
   const router = useRouter()
-  const [data, setData] = useState(initData())
   const [session] = useState(initialUser)
   const [page, setPage] = useState("home")
   const [sideOpen, setSideOpen] = useState(true)
   const [toast, setToast] = useState<any>(null)
 
-  const update = (newData: any) => { setData(newData); saveData(newData) }
   const showToast = (msg: string, type="success") => {
     setToast({msg,type})
     setTimeout(()=>setToast(null),3000)
@@ -454,80 +617,24 @@ export default function MainApp({ initialUser, superAdminEcoleNom, onExitEcole }
   const navItems = getNavItems(session.role)
 
   const renderPage = () => {
-    const props = { session, data, update, showToast }
     if (page === "home") {
-      if (session.role === "admin") return <AdminHome {...props}/>
-      if (session.role === "eleve") return <EleveHome {...props}/>
-      return <AdminHome {...props}/>
+      if (session.role === "eleve") return <EleveHome/>
+      return <AdminHome/>
     }
-    if (page === "eleves") return <ElevesPageComp {...props}/>
-    if (page === "saisie_notes") return <SaisieApp />
-    if (page === "absences") return <SaisieApp />
+    if (page === "eleves") return <ElevesPageComp role={session.role} showToast={showToast}/>
+    if (page === "saisie_notes") return <SaisieApp role="professeur"/>
+    if (page === "absences") return <SaisieApp role="surveillant"/>
     if (page === "devoirs") return <ProgrammeDevoirs role={session.role} classeEleve={session.role==="eleve" ? "3e A" : ""} />
     if (page === "codes_parents") return <AdminCodes />
     if (page === "mes_points") return <PointsDashboard session={session} />
     if (page === "admin_points") return <AdminPoints />
     if (page === "mon_assiduite") return <div style={{padding:24,textAlign:"center",color:"#888"}}><p style={{fontSize:32}}>⏰</p><p>Assiduité — disponible prochainement</p></div>
-    if (page === "sanctions") return <SanctionsPageComp {...props}/>
+    if (page === "sanctions") return <SanctionsPageComp showToast={showToast}/>
     if (page === "classes") return <AdminClasses />
     if (page === "manuel") return <ManuelUtilisation role={session.role} />
-    if (page === "discipline") return (
-      <div>
-        <PageTitle>Discipline</PageTitle>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:20}}>
-          <StatCard icon="⚠️" label="Sanctions" value={data.sanctions.length} color="#d97706"/>
-          <StatCard icon="⏰" label="Retards" value={data.retards.length} color="#dc2626"/>
-          <StatCard icon="📅" label="Absences" value={data.absences.length} color="#7c3aed"/>
-        </div>
-        <Card>
-          <TableComp
-            cols={[
-              {key:"el",label:"Élève",render:(r:any)=>{const el=data.eleves.find((e:any)=>e.id===r.eleveId);return el?`${el.prenom} ${el.nom}`:"-"}},
-              {key:"type",label:"Type",render:(r:any)=><Badge label={sanctionLabel[r.type]||r.type} color={sanctionColor[r.type]||"#888"}/>},
-              {key:"motif",label:"Motif"},
-              {key:"dateDebut",label:"Date"},
-            ]}
-            rows={data.sanctions}
-            emptyMsg="Aucune sanction"
-          />
-        </Card>
-      </div>
-    )
-    if (page === "notes") {
-      const eleve = data.eleves.find((e:any)=>e.matricule===session.eleveMatricule)
-      if (!eleve) return <p>Élève introuvable</p>
-      const notes = data.notes.filter((n:any)=>n.eleveId===eleve.id)
-      return (
-        <div>
-          <PageTitle>Mes notes</PageTitle>
-          {data.matieres.map((m:any)=>{
-            const mNotes = notes.filter((n:any)=>n.matiereId===m.id)
-            if(!mNotes.length) return null
-            return (
-              <Card key={m.id} style={{marginBottom:12}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <div style={{width:10,height:10,borderRadius:"50%",background:m.couleur}}/>
-                    <strong>{m.nom}</strong>
-                    <span style={{fontSize:12,color:"#888"}}>coeff. {m.coef}</span>
-                  </div>
-                  <strong style={{color:parseFloat(avg(mNotes.map((n:any)=>n.valeur)))>=10?"#059669":"#dc2626"}}>{avg(mNotes.map((n:any)=>n.valeur))}/20</strong>
-                </div>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  {mNotes.map((n:any,i:number)=>(
-                    <div key={i} style={{background:"#f8f9ff",borderRadius:8,padding:"8px 14px",textAlign:"center",minWidth:80}}>
-                      <p style={{margin:0,fontSize:18,fontWeight:700,color:n.valeur>=10?"#2563eb":"#dc2626"}}>{n.valeur}</p>
-                      <p style={{margin:0,fontSize:11,color:"#888"}}>{n.typeEval}</p>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            )
-          })}
-        </div>
-      )
-    }
-    return <AdminHome {...props}/>
+    if (page === "discipline") return <DisciplinePage/>
+    if (page === "notes") return <MesNotesPage/>
+    return <AdminHome/>
   }
 
   return (

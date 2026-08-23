@@ -25,9 +25,10 @@ function shape(row: any) {
 }
 
 // ── GET /api/eleves — lister les élèves de l'école (filtre ?classeId=) ────────
+// Un élève ne voit que sa propre fiche, quel que soit le classeId demandé.
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireSession(request, ['admin', 'super_admin', 'professeur', 'surveillant'])
+    const session = await requireSession(request, ['admin', 'super_admin', 'professeur', 'surveillant', 'eleve'])
     const ecoleId = resolveEcoleId(session, request)
     if (!ecoleId) {
       return NextResponse.json({ error: 'Compte non rattaché à une école (sélectionnez une école)' }, { status: 403 })
@@ -40,7 +41,11 @@ export async function GET(request: NextRequest) {
       .from('eleves')
       .select('*, users(nom, prenom, email)')
       .eq('ecole_id', ecoleId)
-    if (classeId) query = query.eq('classe_id', classeId)
+    if (session.role === 'eleve') {
+      query = query.eq('user_id', session.sub)
+    } else if (classeId) {
+      query = query.eq('classe_id', classeId)
+    }
 
     const { data, error } = await query
     if (error) throw error

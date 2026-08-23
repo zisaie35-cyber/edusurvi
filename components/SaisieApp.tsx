@@ -1,12 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { authFetch } from '@/lib/apiClient'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+interface Classe { id: string; nom: string; niveau: string }
+interface Matiere { id: string; nom: string; coefficient: number; couleur: string }
+interface Eleve { id: string; nom: string; prenom: string; matricule: string; classeId: string | null }
+
 interface Note {
-  eleveId: number
-  matiereId: number
+  eleveId: string
+  matiereId: string
   valeur: number
   typeEval: string
   trimestre: number
@@ -14,7 +18,7 @@ interface Note {
 }
 
 interface Absence {
-  eleveId: number
+  eleveId: string
   dateDebut: string
   dateFin: string
   motif: string
@@ -22,47 +26,21 @@ interface Absence {
 }
 
 interface Retard {
-  eleveId: number
+  eleveId: string
   date: string
   heureArrivee: string
   motif: string
   justifie: boolean
 }
 
-// ─── Données de démo ──────────────────────────────────────────────────────────
-const ELEVES = [
-  { id:1, nom:"Traoré",    prenom:"Aïcha",    classe:"3ème A" },
-  { id:2, nom:"Compaoré",  prenom:"Théo",     classe:"3ème A" },
-  { id:3, nom:"Zongo",     prenom:"Fatima",   classe:"4ème B" },
-  { id:4, nom:"Ouédraogo", prenom:"Brice",    classe:"3ème A" },
-  { id:5, nom:"Sawadogo",  prenom:"Mariam",   classe:"4ème B" },
-  { id:6, nom:"Kaboré",    prenom:"Luc",      classe:"5ème A" },
-  { id:7, nom:"Diallo",    prenom:"Salimata", classe:"3ème A" },
-  { id:8, nom:"Nikiema",   prenom:"Joël",     classe:"4ème B" },
-  { id:9, nom:"Tapsoba",   prenom:"Reine",    classe:"5ème A" },
-  { id:10, nom:"Ouattara", prenom:"Issa",     classe:"3ème A" },
-]
-
-const MATIERES = [
-  { id:1, nom:"Mathématiques",   coef:3, couleur:"#2563eb" },
-  { id:2, nom:"Français",        coef:3, couleur:"#7c3aed" },
-  { id:3, nom:"SVT",             coef:2, couleur:"#059669" },
-  { id:4, nom:"Histoire-Géo",    coef:2, couleur:"#d97706" },
-  { id:5, nom:"Physique-Chimie", coef:2, couleur:"#dc2626" },
-  { id:6, nom:"Anglais",         coef:2, couleur:"#0891b2" },
-]
-
-const CLASSES = ["3ème A", "4ème B", "5ème A"]
 const TYPES_EVAL = ["Devoir 1", "Devoir 2", "Devoir 3", "Examen", "Interrogation", "TP"]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function initials(e: any) {
-  return `${e.prenom[0]}${e.nom[0]}`
-}
+function hashStr(s: string) { let h = 0; for (let i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) | 0 } return Math.abs(h) }
 const COLORS = ["#2563eb","#7c3aed","#059669","#d97706","#dc2626","#0891b2"]
-function avatarColor(id: number) { return COLORS[id % COLORS.length] }
+function avatarColor(id: string) { return COLORS[hashStr(id) % COLORS.length] }
 
-function Avatar({ eleve, size=36 }: any) {
+function Avatar({ eleve, size=36 }: { eleve: Eleve, size?: number }) {
   return (
     <div style={{
       width:size, height:size, borderRadius:"50%",
@@ -71,7 +49,7 @@ function Avatar({ eleve, size=36 }: any) {
       justifyContent:"center", fontWeight:700,
       fontSize: size * 0.35, flexShrink:0
     }}>
-      {initials(eleve)}
+      {eleve.prenom?.[0]}{eleve.nom?.[0]}
     </div>
   )
 }
@@ -104,25 +82,28 @@ function Toast({ msg, type, onClose }: any) {
 }
 
 // ─── FORMULAIRE SAISIE NOTES ─────────────────────────────────────────────────
-function SaisieNotesForm({ onSave }: { onSave: (notes: Note[], meta: { typeEval: string, trimestre: number, classe: string, matiereId: number }) => void | Promise<void> }) {
-  const [classe, setClasse] = useState("3ème A")
-  const [matiereId, setMatiereId] = useState(1)
+function SaisieNotesForm({ classes, eleves, matieres, onSave }: {
+  classes: Classe[], eleves: Eleve[], matieres: Matiere[],
+  onSave: (notes: Note[], meta: { typeEval: string, trimestre: number, classeId: string, matiereId: string }) => void | Promise<void>
+}) {
+  const [classeId, setClasseId] = useState(classes[0]?.id || "")
+  const [matiereId, setMatiereId] = useState(matieres[0]?.id || "")
   const [trimestre, setTrimestre] = useState(1)
   const [typeEval, setTypeEval] = useState("Devoir 1")
-  const [valeurs, setValeurs] = useState<Record<number,string>>({})
-  const [commentaires, setCommentaires] = useState<Record<number,string>>({})
-  const [showComment, setShowComment] = useState<number|null>(null)
-  const [errors, setErrors] = useState<Record<number,string>>({})
+  const [valeurs, setValeurs] = useState<Record<string,string>>({})
+  const [commentaires, setCommentaires] = useState<Record<string,string>>({})
+  const [showComment, setShowComment] = useState<string|null>(null)
+  const [errors, setErrors] = useState<Record<string,string>>({})
 
-  const elevesClasse = ELEVES.filter(e => e.classe === classe)
-  const matiere = MATIERES.find(m => m.id === matiereId)
+  const elevesClasse = eleves.filter(e => e.classeId === classeId)
+  const matiere = matieres.find(m => m.id === matiereId)
 
   const validateNote = (val: string) => {
     const n = parseFloat(val)
     return !isNaN(n) && n >= 0 && n <= 20
   }
 
-  const setValeur = (eleveId: number, val: string) => {
+  const setValeur = (eleveId: string, val: string) => {
     setValeurs(prev => ({ ...prev, [eleveId]: val }))
     if (val && !validateNote(val)) {
       setErrors(prev => ({ ...prev, [eleveId]: "Entre 0 et 20" }))
@@ -151,7 +132,8 @@ function SaisieNotesForm({ onSave }: { onSave: (notes: Note[], meta: { typeEval:
         })
       }
     }
-    onSave(notes, { typeEval, trimestre, classe, matiereId })
+    if (!notes.length) return
+    onSave(notes, { typeEval, trimestre, classeId, matiereId })
     setValeurs({})
     setCommentaires({})
   }
@@ -162,6 +144,9 @@ function SaisieNotesForm({ onSave }: { onSave: (notes: Note[], meta: { typeEval:
     return (vals.reduce((a,b) => a+b, 0) / vals.length).toFixed(1)
   }
 
+  if (!classes.length) return <p style={{textAlign:"center", color:"#999", padding:32}}>Aucune classe pour l'instant — créez-en une dans « Classes & Profs ».</p>
+  if (!matieres.length) return <p style={{textAlign:"center", color:"#999", padding:32}}>Chargement des matières...</p>
+
   return (
     <div>
       {/* Filtres */}
@@ -171,14 +156,14 @@ function SaisieNotesForm({ onSave }: { onSave: (notes: Note[], meta: { typeEval:
       }}>
         <div>
           <label style={S.label}>Classe</label>
-          <select style={S.select} value={classe} onChange={e => setClasse(e.target.value)}>
-            {CLASSES.map(c => <option key={c}>{c}</option>)}
+          <select style={S.select} value={classeId} onChange={e => setClasseId(e.target.value)}>
+            {classes.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
           </select>
         </div>
         <div>
           <label style={S.label}>Matière</label>
-          <select style={S.select} value={matiereId} onChange={e => setMatiereId(parseInt(e.target.value))}>
-            {MATIERES.map(m => <option key={m.id} value={m.id}>{m.nom}</option>)}
+          <select style={S.select} value={matiereId} onChange={e => setMatiereId(e.target.value)}>
+            {matieres.map(m => <option key={m.id} value={m.id}>{m.nom}</option>)}
           </select>
         </div>
         <div>
@@ -202,7 +187,7 @@ function SaisieNotesForm({ onSave }: { onSave: (notes: Note[], meta: { typeEval:
         <div style={{display:"flex", alignItems:"center", gap:10}}>
           <div style={{width:12, height:12, borderRadius:"50%", background: matiere?.couleur}}/>
           <strong style={{fontSize:15}}>{matiere?.nom}</strong>
-          <span style={{fontSize:12, color:"#888"}}>coeff. {matiere?.coef}</span>
+          <span style={{fontSize:12, color:"#888"}}>coeff. {matiere?.coefficient}</span>
           <Badge label={`T${trimestre} · ${typeEval}`} color="#2563eb"/>
         </div>
         <div style={{display:"flex", alignItems:"center", gap:16}}>
@@ -235,6 +220,9 @@ function SaisieNotesForm({ onSave }: { onSave: (notes: Note[], meta: { typeEval:
             </tr>
           </thead>
           <tbody>
+            {elevesClasse.length === 0 && (
+              <tr><td colSpan={4} style={{textAlign:"center", padding:24, color:"#999"}}>Aucun élève dans cette classe</td></tr>
+            )}
             {elevesClasse.map((eleve, i) => (
               <tr key={eleve.id} style={{background: i%2===0 ? "#fff" : "#fafbff", borderBottom:"1px solid #f0f0f0"}}>
                 <td style={{...S.td, color:"#aaa", fontSize:12, textAlign:"center"}}>{i+1}</td>
@@ -243,7 +231,7 @@ function SaisieNotesForm({ onSave }: { onSave: (notes: Note[], meta: { typeEval:
                     <Avatar eleve={eleve} size={32}/>
                     <div>
                       <p style={{margin:0, fontWeight:600, fontSize:13}}>{eleve.prenom} {eleve.nom}</p>
-                      <p style={{margin:0, fontSize:11, color:"#888"}}>{eleve.classe}</p>
+                      <p style={{margin:0, fontSize:11, color:"#888"}}>{eleve.matricule}</p>
                     </div>
                   </div>
                 </td>
@@ -329,75 +317,76 @@ function SaisieNotesForm({ onSave }: { onSave: (notes: Note[], meta: { typeEval:
   )
 }
 
-// ─── FORMULAIRE ABSENCES ──────────────────────────────────────────────────────
-function SaisieAbsencesForm({ onSave }: { onSave: (a: Absence) => void | Promise<void> }) {
-  const [form, setForm] = useState<Absence>({
-    eleveId: 0,
-    dateDebut: new Date().toISOString().split("T")[0],
-    dateFin: new Date().toISOString().split("T")[0],
-    motif: "",
-    justifiee: false,
-  })
+// ─── Sélecteur d'élève partagé (absences / retards) ──────────────────────────
+function SelecteurEleve({ eleves, classes, eleveId, onSelect, accent }: {
+  eleves: Eleve[], classes: Classe[], eleveId: string, onSelect: (id: string) => void, accent: string
+}) {
   const [search, setSearch] = useState("")
-
-  const filtered = ELEVES.filter(e =>
+  const nomClasse = (classeId: string | null) => classes.find(c => c.id === classeId)?.nom || "Sans classe"
+  const filtered = eleves.filter(e =>
     `${e.nom} ${e.prenom}`.toLowerCase().includes(search.toLowerCase())
   )
+  const selectedEleve = eleves.find(e => e.id === eleveId)
 
-  const selectedEleve = ELEVES.find(e => e.id === form.eleveId)
+  return (
+    <div style={{marginBottom:16}}>
+      <label style={S.label}>Rechercher un élève</label>
+      <input
+        style={S.input}
+        placeholder="Nom ou prénom..."
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+      />
+      {search && (
+        <div style={{border:"1px solid #e5e7eb", borderRadius:8, overflow:"hidden", maxHeight:180, overflowY:"auto", marginTop:4}}>
+          {filtered.map(e => (
+            <div
+              key={e.id}
+              onClick={() => { onSelect(e.id); setSearch("") }}
+              style={{
+                display:"flex", alignItems:"center", gap:10, padding:"10px 14px",
+                cursor:"pointer", background: eleveId===e.id ? "#eff6ff" : "#fff",
+                borderBottom:"1px solid #f5f5f5"
+              }}
+            >
+              <Avatar eleve={e} size={28}/>
+              <div>
+                <p style={{margin:0, fontSize:13, fontWeight:500}}>{e.prenom} {e.nom}</p>
+                <p style={{margin:0, fontSize:11, color:"#888"}}>{nomClasse(e.classeId)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {selectedEleve && (
+        <div style={{display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:accent+"14", borderRadius:8, marginTop:8, border:`1.5px solid ${accent}44`}}>
+          <Avatar eleve={selectedEleve} size={32}/>
+          <div>
+            <p style={{margin:0, fontWeight:600}}>{selectedEleve.prenom} {selectedEleve.nom}</p>
+            <p style={{margin:0, fontSize:12, color:"#888"}}>{nomClasse(selectedEleve.classeId)}</p>
+          </div>
+          <button onClick={() => onSelect("")} style={{marginLeft:"auto", background:"none", border:"none", cursor:"pointer", color:"#888", fontSize:16}}>✕</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── FORMULAIRE ABSENCES ──────────────────────────────────────────────────────
+function SaisieAbsencesForm({ eleves, classes, onSave }: { eleves: Eleve[], classes: Classe[], onSave: (a: Absence) => void | Promise<void> }) {
+  const today = new Date().toISOString().split("T")[0]
+  const [form, setForm] = useState<Absence>({ eleveId: "", dateDebut: today, dateFin: today, motif: "", justifiee: false })
 
   const handleSave = () => {
     if (!form.eleveId || !form.dateDebut) return
     onSave(form)
-    setForm({ eleveId:0, dateDebut: new Date().toISOString().split("T")[0], dateFin: new Date().toISOString().split("T")[0], motif:"", justifiee:false })
-    setSearch("")
+    setForm({ eleveId:"", dateDebut: today, dateFin: today, motif:"", justifiee:false })
   }
 
   return (
     <div>
-      {/* Sélection élève */}
-      <div style={{marginBottom:16}}>
-        <label style={S.label}>Rechercher un élève</label>
-        <input
-          style={S.input}
-          placeholder="Nom ou prénom..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-        {search && (
-          <div style={{border:"1px solid #e5e7eb", borderRadius:8, overflow:"hidden", maxHeight:180, overflowY:"auto", marginTop:4}}>
-            {filtered.map(e => (
-              <div
-                key={e.id}
-                onClick={() => { setForm(prev => ({...prev, eleveId: e.id})); setSearch("") }}
-                style={{
-                  display:"flex", alignItems:"center", gap:10, padding:"10px 14px",
-                  cursor:"pointer", background: form.eleveId===e.id ? "#eff6ff" : "#fff",
-                  borderBottom:"1px solid #f5f5f5"
-                }}
-              >
-                <Avatar eleve={e} size={28}/>
-                <div>
-                  <p style={{margin:0, fontSize:13, fontWeight:500}}>{e.prenom} {e.nom}</p>
-                  <p style={{margin:0, fontSize:11, color:"#888"}}>{e.classe}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        {selectedEleve && (
-          <div style={{display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:"#eff6ff", borderRadius:8, marginTop:8, border:"1.5px solid #bfdbfe"}}>
-            <Avatar eleve={selectedEleve} size={32}/>
-            <div>
-              <p style={{margin:0, fontWeight:600}}>{selectedEleve.prenom} {selectedEleve.nom}</p>
-              <p style={{margin:0, fontSize:12, color:"#888"}}>{selectedEleve.classe}</p>
-            </div>
-            <button onClick={() => setForm(prev => ({...prev, eleveId:0}))} style={{marginLeft:"auto", background:"none", border:"none", cursor:"pointer", color:"#888", fontSize:16}}>✕</button>
-          </div>
-        )}
-      </div>
+      <SelecteurEleve eleves={eleves} classes={classes} eleveId={form.eleveId} onSelect={id => setForm(prev => ({...prev, eleveId: id}))} accent="#2563eb"/>
 
-      {/* Dates */}
       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:14}}>
         <div>
           <label style={S.label}>Date de début</label>
@@ -411,14 +400,12 @@ function SaisieAbsencesForm({ onSave }: { onSave: (a: Absence) => void | Promise
         </div>
       </div>
 
-      {/* Motif */}
       <div style={{marginBottom:14}}>
         <label style={S.label}>Motif (optionnel)</label>
         <input style={S.input} placeholder="Maladie, deuil, voyage..." value={form.motif}
           onChange={e => setForm(prev => ({...prev, motif: e.target.value}))}/>
       </div>
 
-      {/* Justifiée */}
       <div style={{marginBottom:20}}>
         <label style={{display:"flex", alignItems:"center", gap:10, cursor:"pointer", fontSize:14}}>
           <div
@@ -457,60 +444,19 @@ function SaisieAbsencesForm({ onSave }: { onSave: (a: Absence) => void | Promise
 }
 
 // ─── FORMULAIRE RETARDS ───────────────────────────────────────────────────────
-function SaisieRetardsForm({ onSave }: { onSave: (r: Retard) => void | Promise<void> }) {
-  const [form, setForm] = useState<Retard>({
-    eleveId: 0,
-    date: new Date().toISOString().split("T")[0],
-    heureArrivee: "",
-    motif: "",
-    justifie: false,
-  })
-  const [search, setSearch] = useState("")
-
-  const filtered = ELEVES.filter(e =>
-    `${e.nom} ${e.prenom}`.toLowerCase().includes(search.toLowerCase())
-  )
-  const selectedEleve = ELEVES.find(e => e.id === form.eleveId)
+function SaisieRetardsForm({ eleves, classes, onSave }: { eleves: Eleve[], classes: Classe[], onSave: (r: Retard) => void | Promise<void> }) {
+  const today = new Date().toISOString().split("T")[0]
+  const [form, setForm] = useState<Retard>({ eleveId: "", date: today, heureArrivee: "", motif: "", justifie: false })
 
   const handleSave = () => {
     if (!form.eleveId || !form.date || !form.heureArrivee) return
     onSave(form)
-    setForm({ eleveId:0, date: new Date().toISOString().split("T")[0], heureArrivee:"", motif:"", justifie:false })
-    setSearch("")
+    setForm({ eleveId:"", date: today, heureArrivee:"", motif:"", justifie:false })
   }
 
   return (
     <div>
-      {/* Sélection élève */}
-      <div style={{marginBottom:16}}>
-        <label style={S.label}>Rechercher un élève</label>
-        <input style={S.input} placeholder="Nom ou prénom..."
-          value={search} onChange={e => setSearch(e.target.value)}/>
-        {search && (
-          <div style={{border:"1px solid #e5e7eb", borderRadius:8, overflow:"hidden", maxHeight:180, overflowY:"auto", marginTop:4}}>
-            {filtered.map(e => (
-              <div key={e.id} onClick={() => { setForm(prev => ({...prev, eleveId: e.id})); setSearch("") }}
-                style={{display:"flex", alignItems:"center", gap:10, padding:"10px 14px", cursor:"pointer", background:"#fff", borderBottom:"1px solid #f5f5f5"}}>
-                <Avatar eleve={e} size={28}/>
-                <div>
-                  <p style={{margin:0, fontSize:13, fontWeight:500}}>{e.prenom} {e.nom}</p>
-                  <p style={{margin:0, fontSize:11, color:"#888"}}>{e.classe}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        {selectedEleve && (
-          <div style={{display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:"#fff7ed", borderRadius:8, marginTop:8, border:"1.5px solid #fed7aa"}}>
-            <Avatar eleve={selectedEleve} size={32}/>
-            <div>
-              <p style={{margin:0, fontWeight:600}}>{selectedEleve.prenom} {selectedEleve.nom}</p>
-              <p style={{margin:0, fontSize:12, color:"#888"}}>{selectedEleve.classe}</p>
-            </div>
-            <button onClick={() => setForm(prev => ({...prev, eleveId:0}))} style={{marginLeft:"auto", background:"none", border:"none", cursor:"pointer", color:"#888", fontSize:16}}>✕</button>
-          </div>
-        )}
-      </div>
+      <SelecteurEleve eleves={eleves} classes={classes} eleveId={form.eleveId} onSelect={id => setForm(prev => ({...prev, eleveId: id}))} accent="#d97706"/>
 
       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:14}}>
         <div>
@@ -570,7 +516,9 @@ function SaisieRetardsForm({ onSave }: { onSave: (r: Retard) => void | Promise<v
 }
 
 // ─── HISTORIQUE ───────────────────────────────────────────────────────────────
-function Historique({ notes, absences, retards }: any) {
+function Historique({ notes, absences, retards, eleves, matieres }: {
+  notes: Note[], absences: Absence[], retards: Retard[], eleves: Eleve[], matieres: Matiere[]
+}) {
   const [tab, setTab] = useState<"notes"|"absences"|"retards">("notes")
 
   return (
@@ -597,9 +545,9 @@ function Historique({ notes, absences, retards }: any) {
       {tab==="notes" && (
         notes.length === 0
           ? <p style={{textAlign:"center", color:"#999", padding:32}}>Aucune note enregistrée</p>
-          : notes.map((n: any, i: number) => {
-              const el = ELEVES.find(e => e.id === n.eleveId)
-              const mat = MATIERES.find(m => m.id === n.matiereId)
+          : notes.map((n, i) => {
+              const el = eleves.find(e => e.id === n.eleveId)
+              const mat = matieres.find(m => m.id === n.matiereId)
               return (
                 <div key={i} style={{display:"flex", alignItems:"center", gap:12, padding:"10px 0", borderBottom:"1px solid #f5f5f5"}}>
                   {el && <Avatar eleve={el} size={30}/>}
@@ -619,8 +567,8 @@ function Historique({ notes, absences, retards }: any) {
       {tab==="absences" && (
         absences.length === 0
           ? <p style={{textAlign:"center", color:"#999", padding:32}}>Aucune absence enregistrée</p>
-          : absences.map((a: any, i: number) => {
-              const el = ELEVES.find(e => e.id === a.eleveId)
+          : absences.map((a, i) => {
+              const el = eleves.find(e => e.id === a.eleveId)
               return (
                 <div key={i} style={{display:"flex", alignItems:"center", gap:12, padding:"10px 0", borderBottom:"1px solid #f5f5f5"}}>
                   {el && <Avatar eleve={el} size={30}/>}
@@ -639,8 +587,8 @@ function Historique({ notes, absences, retards }: any) {
       {tab==="retards" && (
         retards.length === 0
           ? <p style={{textAlign:"center", color:"#999", padding:32}}>Aucun retard enregistré</p>
-          : retards.map((r: any, i: number) => {
-              const el = ELEVES.find(e => e.id === r.eleveId)
+          : retards.map((r, i) => {
+              const el = eleves.find(e => e.id === r.eleveId)
               return (
                 <div key={i} style={{display:"flex", alignItems:"center", gap:12, padding:"10px 0", borderBottom:"1px solid #f5f5f5"}}>
                   {el && <Avatar eleve={el} size={30}/>}
@@ -669,10 +617,13 @@ const S = {
 }
 
 // ─── COMPOSANT PRINCIPAL ─────────────────────────────────────────────────────
-export default function SaisieApp() {
-  const [role, setRole] = useState<"professeur"|"surveillant">("professeur")
+export default function SaisieApp({ role }: { role: "professeur" | "surveillant" }) {
   const [tab, setTab] = useState<"saisie"|"historique">("saisie")
   const [toast, setToast] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [classes, setClasses] = useState<Classe[]>([])
+  const [eleves, setEleves] = useState<Eleve[]>([])
+  const [matieres, setMatieres] = useState<Matiere[]>([])
   const [notes, setNotes] = useState<Note[]>([])
   const [absences, setAbsences] = useState<Absence[]>([])
   const [retards, setRetards] = useState<Retard[]>([])
@@ -687,6 +638,33 @@ export default function SaisieApp() {
     if (typeof window === 'undefined') return null
     try { return JSON.parse(localStorage.getItem('user') || '{}') } catch { return null }
   }
+
+  useEffect(() => {
+    const charger = async () => {
+      setLoading(true)
+      try {
+        const [rc, re, rm] = await Promise.all([authFetch('/api/classes'), authFetch('/api/eleves'), authFetch('/api/matieres')])
+        const [dc, de, dm] = await Promise.all([rc.json(), re.json(), rm.json()])
+        if (dc.success) setClasses(dc.data || [])
+        if (de.success) setEleves(de.data || [])
+        if (dm.success) setMatieres(dm.data || [])
+
+        if (role === "professeur") {
+          const dn = await authFetch('/api/notes').then(r => r.json())
+          if (dn.success) setNotes(dn.data || [])
+        } else {
+          const [ra, rr] = await Promise.all([authFetch('/api/absences'), authFetch('/api/retards')])
+          const [da, dr] = await Promise.all([ra.json(), rr.json()])
+          if (da.success) setAbsences(da.data || [])
+          if (dr.success) setRetards(dr.data || [])
+        }
+      } catch {
+        showToast("Erreur de chargement", "error")
+      }
+      setLoading(false)
+    }
+    charger()
+  }, [role])
 
   const addPoints = async (action: string, description: string, ptsKey: string, defaultPts: number) => {
     const user = getUser()
@@ -712,9 +690,21 @@ export default function SaisieApp() {
     } catch { return null }
   }
 
-  const handleSaveNotes = async (newNotes: Note[], meta?: { typeEval: string, trimestre: number, classe: string, matiereId: number }) => {
-    setNotes(prev => [...newNotes, ...prev])
-    showToast(`✅ ${newNotes.length} note(s) enregistrée(s) avec succès !`)
+  const handleSaveNotes = async (newNotes: Note[], meta: { typeEval: string, trimestre: number, classeId: string, matiereId: string }) => {
+    try {
+      const res = await authFetch('/api/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entries: newNotes }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setNotes(prev => [...(data.data || newNotes), ...prev])
+      showToast(`✅ ${newNotes.length} note(s) enregistrée(s) avec succès !`)
+    } catch (e: any) {
+      showToast(e.message || "Erreur lors de l'enregistrement", "error")
+      return
+    }
 
     const user = getUser()
     if (user?.id) {
@@ -723,7 +713,6 @@ export default function SaisieApp() {
         const ptsParNote = cfg?.data?.pts_note || 10
         const ptsTotal = newNotes.length * ptsParNote
 
-        // Points pour les notes saisies
         await authFetch('/api/points', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -733,20 +722,20 @@ export default function SaisieApp() {
             userPrenom: user.prenom,
             userRole: user.role,
             action: 'note',
-            description: `${newNotes.length} note(s) saisie(s) — ${meta?.typeEval || ''} T${meta?.trimestre || ''}`,
+            description: `${newNotes.length} note(s) saisie(s) — ${meta.typeEval} T${meta.trimestre}`,
             points: ptsTotal,
             annee: '2024-2025',
           }),
         })
 
-        // Bonus si toute la classe est notée
-        const elevesClasse = ELEVES.filter(e => e.classe === (meta?.classe || ''))
+        const elevesClasse = eleves.filter(e => e.classeId === meta.classeId)
         const toutesNotees = elevesClasse.every(e =>
           newNotes.some(n => n.eleveId === e.id) ||
-          notes.some(n => n.eleveId === e.id && n.matiereId === (meta?.matiereId || 0) && n.trimestre === (meta?.trimestre || 0))
+          notes.some(n => n.eleveId === e.id && n.matiereId === meta.matiereId && n.trimestre === meta.trimestre)
         )
         if (toutesNotees) {
           const ptsBonus = cfg?.data?.pts_classe_complete || 100
+          const classe = classes.find(c => c.id === meta.classeId)
           await authFetch('/api/points', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -756,7 +745,7 @@ export default function SaisieApp() {
               userPrenom: user.prenom,
               userRole: user.role,
               action: 'classe_complete',
-              description: `Bonus — Classe ${meta?.classe || ''} 100% notée T${meta?.trimestre || ''}`,
+              description: `Bonus — Classe ${classe?.nom || ''} 100% notée T${meta.trimestre}`,
               points: ptsBonus,
               annee: '2024-2025',
             }),
@@ -769,20 +758,46 @@ export default function SaisieApp() {
   }
 
   const handleSaveAbsence = async (a: Absence) => {
-    setAbsences(prev => [a, ...prev])
-    const el = ELEVES.find(e => e.id === a.eleveId)
-    showToast(`✅ Absence de ${el?.prenom} ${el?.nom} enregistrée`)
+    const el = eleves.find(e => e.id === a.eleveId)
+    try {
+      const res = await authFetch('/api/absences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(a),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setAbsences(prev => [data.data, ...prev])
+      showToast(`✅ Absence de ${el?.prenom} ${el?.nom} enregistrée`)
+    } catch (e: any) {
+      showToast(e.message || "Erreur lors de l'enregistrement", "error")
+      return
+    }
     await addPoints('absence', `Absence enregistrée — ${el?.prenom} ${el?.nom}`, 'pts_absence', 15)
     setTab("historique")
   }
 
   const handleSaveRetard = async (r: Retard) => {
-    setRetards(prev => [r, ...prev])
-    const el = ELEVES.find(e => e.id === r.eleveId)
-    showToast(`✅ Retard de ${el?.prenom} ${el?.nom} enregistré`)
+    const el = eleves.find(e => e.id === r.eleveId)
+    try {
+      const res = await authFetch('/api/retards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(r),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setRetards(prev => [data.data, ...prev])
+      showToast(`✅ Retard de ${el?.prenom} ${el?.nom} enregistré`)
+    } catch (e: any) {
+      showToast(e.message || "Erreur lors de l'enregistrement", "error")
+      return
+    }
     await addPoints('retard', `Retard enregistré — ${el?.prenom} ${el?.nom}`, 'pts_retard', 10)
     setTab("historique")
   }
+
+  const totalHistorique = role === "professeur" ? notes.length : absences.length + retards.length
 
   return (
     <div style={{fontFamily:"'Segoe UI',system-ui,sans-serif", background:"#f4f6fb", minHeight:"100vh", padding:24}}>
@@ -792,36 +807,20 @@ export default function SaisieApp() {
 
       {/* Header */}
       <div style={{maxWidth:860, margin:"0 auto"}}>
-        <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:24}}>
-          <div>
-            <h1 style={{fontSize:22, fontWeight:700, color:"#1a1a2e", margin:0}}>
-              {role === "professeur" ? "📝 Saisie des notes" : "👁️ Suivi de l'assiduité"}
-            </h1>
-            <p style={{fontSize:13, color:"#888", margin:"4px 0 0"}}>
-              {role === "professeur" ? "Enregistrez les notes par matière et trimestre" : "Enregistrez les absences et retards des élèves"}
-            </p>
-          </div>
-          {/* Toggle rôle */}
-          <div style={{display:"flex", background:"#fff", border:"1px solid #e5e7eb", borderRadius:10, padding:4, gap:4}}>
-            {(["professeur","surveillant"] as const).map(r => (
-              <button key={r} onClick={() => { setRole(r); setTab("saisie") }}
-                style={{
-                  padding:"7px 16px", borderRadius:7, fontSize:13, cursor:"pointer",
-                  background: role===r ? "#1a1a2e" : "transparent",
-                  color: role===r ? "#fff" : "#666",
-                  border:"none", fontWeight: role===r ? 600 : 400, transition:"all .2s"
-                }}>
-                {r === "professeur" ? "Professeur" : "Surveillant"}
-              </button>
-            ))}
-          </div>
+        <div style={{marginBottom:24}}>
+          <h1 style={{fontSize:22, fontWeight:700, color:"#1a1a2e", margin:0}}>
+            {role === "professeur" ? "📝 Saisie des notes" : "👁️ Suivi de l'assiduité"}
+          </h1>
+          <p style={{fontSize:13, color:"#888", margin:"4px 0 0"}}>
+            {role === "professeur" ? "Enregistrez les notes par matière et trimestre" : "Enregistrez les absences et retards des élèves"}
+          </p>
         </div>
 
         {/* Tabs */}
         <div style={{display:"flex", gap:8, marginBottom:20}}>
           {[
             {id:"saisie", label: role==="professeur" ? "✏️ Nouvelle saisie" : "➕ Enregistrer"},
-            {id:"historique", label:`📋 Historique (${notes.length + absences.length + retards.length})`},
+            {id:"historique", label:`📋 Historique (${totalHistorique})`},
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id as any)}
               style={{
@@ -838,39 +837,41 @@ export default function SaisieApp() {
 
         {/* Contenu */}
         <div style={{background:"#fff", borderRadius:16, padding:24, boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}>
-          {tab === "saisie" && role === "professeur" && (
-            <SaisieNotesForm onSave={handleSaveNotes}/>
-          )}
+          {loading ? <p style={{textAlign:"center", color:"#aaa", padding:40}}>⏳ Chargement...</p> : <>
+            {tab === "saisie" && role === "professeur" && (
+              <SaisieNotesForm classes={classes} eleves={eleves} matieres={matieres} onSave={handleSaveNotes}/>
+            )}
 
-          {tab === "saisie" && role === "surveillant" && (
-            <div>
-              <div style={{display:"flex", gap:8, marginBottom:20}}>
-                {[
-                  {id:"absence", label:"📅 Absence", color:"#dc2626"},
-                  {id:"retard", label:"⏰ Retard", color:"#d97706"},
-                ].map(t => (
-                  <button key={t.id} onClick={() => setAbsTab(t.id as any)}
-                    style={{
-                      padding:"8px 20px", borderRadius:8, fontSize:13, cursor:"pointer",
-                      background: absTab===t.id ? t.color : "#fff",
-                      color: absTab===t.id ? "#fff" : "#666",
-                      border: absTab===t.id ? "none" : "1px solid #e5e7eb",
-                      fontWeight: absTab===t.id ? 600 : 400
-                    }}>
-                    {t.label}
-                  </button>
-                ))}
+            {tab === "saisie" && role === "surveillant" && (
+              <div>
+                <div style={{display:"flex", gap:8, marginBottom:20}}>
+                  {[
+                    {id:"absence", label:"📅 Absence", color:"#dc2626"},
+                    {id:"retard", label:"⏰ Retard", color:"#d97706"},
+                  ].map(t => (
+                    <button key={t.id} onClick={() => setAbsTab(t.id as any)}
+                      style={{
+                        padding:"8px 20px", borderRadius:8, fontSize:13, cursor:"pointer",
+                        background: absTab===t.id ? t.color : "#fff",
+                        color: absTab===t.id ? "#fff" : "#666",
+                        border: absTab===t.id ? "none" : "1px solid #e5e7eb",
+                        fontWeight: absTab===t.id ? 600 : 400
+                      }}>
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                {absTab === "absence"
+                  ? <SaisieAbsencesForm eleves={eleves} classes={classes} onSave={handleSaveAbsence}/>
+                  : <SaisieRetardsForm eleves={eleves} classes={classes} onSave={handleSaveRetard}/>
+                }
               </div>
-              {absTab === "absence"
-                ? <SaisieAbsencesForm onSave={handleSaveAbsence}/>
-                : <SaisieRetardsForm onSave={handleSaveRetard}/>
-              }
-            </div>
-          )}
+            )}
 
-          {tab === "historique" && (
-            <Historique notes={notes} absences={absences} retards={retards}/>
-          )}
+            {tab === "historique" && (
+              <Historique notes={notes} absences={absences} retards={retards} eleves={eleves} matieres={matieres}/>
+            )}
+          </>}
         </div>
       </div>
     </div>
