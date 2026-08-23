@@ -7,13 +7,13 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Brevo attend un numéro international SANS le "+" (ex: 22670000000)
-function formatTelBrevo(tel: string): string {
+// Termii attend un numéro international SANS le "+" (ex: 22670000000)
+function formatTelTermii(tel: string): string {
   const digits = tel.replace(/\D/g, '')
   return digits.startsWith('226') ? digits : `226${digits}`
 }
 
-// ── POST /api/codes/envoyer-sms — envoie le code parent par SMS (Brevo) ───────
+// ── POST /api/codes/envoyer-sms — envoie le code parent par SMS (Termii) ──────
 export async function POST(request: NextRequest) {
   try {
     const { id } = await request.json()
@@ -32,24 +32,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Aucun numéro de téléphone renseigné' }, { status: 400 })
     }
 
-    const res = await fetch('https://api.brevo.com/v3/transactionalSMS/sms', {
+    const res = await fetch('https://api.ng.termii.com/api/sms/send', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        'api-key': process.env.BREVO_API_KEY!,
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        sender: process.env.BREVO_SMS_SENDER || 'EduSuivi',
-        recipient: formatTelBrevo(codeParent.parent_tel),
-        content: `EduSuivi : votre code d'accès parent pour ${codeParent.eleve_prenom} ${codeParent.eleve_nom} est ${codeParent.code}. Valable jusqu'au ${codeParent.date_expiration}.`,
-        type: 'transactional',
+        api_key: process.env.TERMII_API_KEY,
+        to: formatTelTermii(codeParent.parent_tel),
+        from: process.env.TERMII_SENDER_ID || 'Termii',
+        sms: `EduSuivi : votre code d'accès parent pour ${codeParent.eleve_prenom} ${codeParent.eleve_nom} est ${codeParent.code}. Valable jusqu'au ${codeParent.date_expiration}.`,
+        type: 'plain',
+        channel: 'generic',
       }),
     })
 
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}))
-      throw new Error(body.message || `Échec de l'envoi (Brevo ${res.status})`)
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok || !body.message_id) {
+      throw new Error(body.message || `Échec de l'envoi (Termii ${res.status})`)
     }
 
     const { data, error } = await supabase
