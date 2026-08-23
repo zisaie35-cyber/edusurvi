@@ -7,13 +7,14 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Africa's Talking attend un numéro international AVEC le "+" (ex: +22670000000)
-function formatTelAfricasTalking(tel: string): string {
+// Format international avec "+" (ex: +22670000000). Ajustez si votre
+// passerelle Kannel/SMSC attend un format différent (sans "+", 00...).
+function formatTelKannel(tel: string): string {
   const digits = tel.replace(/\D/g, '')
   return `+${digits.startsWith('226') ? digits : `226${digits}`}`
 }
 
-// ── POST /api/codes/envoyer-sms — envoie le code parent par SMS (Africa's Talking) ──
+// ── POST /api/codes/envoyer-sms — envoie le code parent par SMS (Kannel) ──────
 export async function POST(request: NextRequest) {
   try {
     const { id } = await request.json()
@@ -32,31 +33,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Aucun numéro de téléphone renseigné' }, { status: 400 })
     }
 
-    const params = new URLSearchParams({
-      username: process.env.AT_USERNAME!,
-      to: formatTelAfricasTalking(codeParent.parent_tel),
-      message: `EduSuivi : votre code d'accès parent pour ${codeParent.eleve_prenom} ${codeParent.eleve_nom} est ${codeParent.code}. Valable jusqu'au ${codeParent.date_expiration}.`,
-    })
-    if (process.env.AT_SENDER_ID) params.set('from', process.env.AT_SENDER_ID)
+    const message = `EduSuivi : votre code d'accès parent pour ${codeParent.eleve_prenom} ${codeParent.eleve_nom} est ${codeParent.code}. Valable jusqu'au ${codeParent.date_expiration}.`
 
-    const baseUrl = process.env.AT_USERNAME === 'sandbox'
-      ? 'https://api.sandbox.africastalking.com/version1/messaging'
-      : 'https://api.africastalking.com/version1/messaging'
+    const url = new URL(process.env.KANNEL_URL!) // ex: https://votre-serveur.tld:13013/cgi-bin/sendsms
+    url.searchParams.set('username', process.env.KANNEL_USERNAME!)
+    url.searchParams.set('password', process.env.KANNEL_PASSWORD!)
+    url.searchParams.set('to', formatTelKannel(codeParent.parent_tel))
+    url.searchParams.set('text', message)
+    if (process.env.KANNEL_FROM) url.searchParams.set('from', process.env.KANNEL_FROM)
 
-    const res = await fetch(baseUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Accept: 'application/json',
-        apiKey: process.env.AT_API_KEY!,
-      },
-      body: params.toString(),
-    })
+    const res = await fetch(url.toString(), { method: 'GET' })
+    const responseText = (await res.text()).trim()
 
-    const body = await res.json().catch(() => ({}))
-    const recipient = body.SMSMessageData?.Recipients?.[0]
-    if (!res.ok || !recipient || recipient.status !== 'Success') {
-      throw new Error(recipient?.status || body.SMSMessageData?.Message || `Échec de l'envoi (Africa's Talking ${res.status})`)
+    // Kannel répond en texte brut, ex: "0: Accepted for delivery" en cas de succès.
+    if (!res.ok || !responseText.startsWith('0:')) {
+      throw new Error(responseText || `Échec de l'envoi (Kannel ${res.status})`)
     }
 
     const { data, error } = await supabase
