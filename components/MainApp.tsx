@@ -139,6 +139,7 @@ function TableComp({ cols, rows, emptyMsg="Aucune donnée" }: any) {
 // ─── Dashboards ───────────────────────────────────────────────────────────────
 function AdminHome() {
   const [loading, setLoading] = useState(true)
+  const [ecole, setEcole] = useState<any>(null)
   const [classes, setClasses] = useState<any[]>([])
   const [eleves, setEleves] = useState<any[]>([])
   const [profs, setProfs] = useState<any[]>([])
@@ -149,16 +150,17 @@ function AdminHome() {
     (async () => {
       setLoading(true)
       try {
-        const [rc, re, rp, rs, ra] = await Promise.all([
+        const [rc, re, rp, rs, ra, rec] = await Promise.all([
           authFetch('/api/classes'), authFetch('/api/eleves'), authFetch('/api/professeurs'),
-          authFetch('/api/sanctions'), authFetch('/api/absences'),
+          authFetch('/api/sanctions'), authFetch('/api/absences'), authFetch('/api/mon-ecole'),
         ])
-        const [dc, de, dp, ds, da] = await Promise.all([rc.json(), re.json(), rp.json(), rs.json(), ra.json()])
+        const [dc, de, dp, ds, da, dec] = await Promise.all([rc.json(), re.json(), rp.json(), rs.json(), ra.json(), rec.json()])
         if (dc.success) setClasses(dc.data || [])
         if (de.success) setEleves(de.data || [])
         if (dp.success) setProfs(dp.data || [])
         if (ds.success) setSanctions(ds.data || [])
         if (da.success) setAbsences(da.data || [])
+        if (dec.success) setEcole(dec.data)
       } catch {}
       setLoading(false)
     })()
@@ -169,6 +171,11 @@ function AdminHome() {
   return (
     <div>
       <PageTitle>Tableau de bord</PageTitle>
+      {ecole && (
+        <p style={{marginTop:-18,marginBottom:24,fontSize:14,color:"#666"}}>
+          🏫 {ecole.nom}{ecole.ville ? ` — ${ecole.ville}` : ""}{ecole.pays ? `, ${ecole.pays}` : ""}
+        </p>
+      )}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:16,marginBottom:24}}>
         <StatCard icon="👤" label="Élèves inscrits" value={eleves.length} color="#2563eb"/>
         <StatCard icon="👩‍🏫" label="Professeurs" value={profs.length} color="#7c3aed"/>
@@ -453,6 +460,7 @@ function DisciplinePage() {
 
 function EleveHome() {
   const [loading, setLoading] = useState(true)
+  const [ecole, setEcole] = useState<any>(null)
   const [eleve, setEleve] = useState<any>(null)
   const [classe, setClasse] = useState<any>(null)
   const [notes, setNotes] = useState<any[]>([])
@@ -463,16 +471,17 @@ function EleveHome() {
     (async () => {
       setLoading(true)
       try {
-        const [re, rn, ra, rr, rc] = await Promise.all([
-          authFetch('/api/eleves'), authFetch('/api/notes'), authFetch('/api/absences'), authFetch('/api/retards'), authFetch('/api/classes'),
+        const [re, rn, ra, rr, rc, rec] = await Promise.all([
+          authFetch('/api/eleves'), authFetch('/api/notes'), authFetch('/api/absences'), authFetch('/api/retards'), authFetch('/api/classes'), authFetch('/api/mon-ecole'),
         ])
-        const [de, dn, da, dr, dc] = await Promise.all([re.json(), rn.json(), ra.json(), rr.json(), rc.json()])
+        const [de, dn, da, dr, dc, dec] = await Promise.all([re.json(), rn.json(), ra.json(), rr.json(), rc.json(), rec.json()])
         const moi = de.success ? (de.data || [])[0] || null : null
         setEleve(moi)
         if (dn.success) setNotes(dn.data || [])
         if (da.success) setAbsences(da.data || [])
         if (dr.success) setRetards(dr.data || [])
         if (dc.success && moi) setClasse((dc.data || []).find((c:any)=>c.id===moi.classeId) || null)
+        if (dec.success) setEcole(dec.data)
       } catch {}
       setLoading(false)
     })()
@@ -483,6 +492,11 @@ function EleveHome() {
 
   return (
     <div>
+      {ecole && (
+        <p style={{margin:"0 0 12px",fontSize:14,color:"#666"}}>
+          🏫 {ecole.nom}{ecole.ville ? ` — ${ecole.ville}` : ""}{ecole.pays ? `, ${ecole.pays}` : ""}
+        </p>
+      )}
       <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:28,background:"linear-gradient(135deg,#1a1a2e,#2563eb)",borderRadius:16,padding:"24px 28px",color:"#fff"}}>
         <EleveAvatar eleve={eleve} size={56}/>
         <div>
