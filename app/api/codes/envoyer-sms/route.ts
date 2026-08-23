@@ -7,13 +7,13 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Vonage attend un numéro international SANS le "+" (ex: 22670000000)
-function formatTelVonage(tel: string): string {
+// Africa's Talking attend un numéro international AVEC le "+" (ex: +22670000000)
+function formatTelAfricasTalking(tel: string): string {
   const digits = tel.replace(/\D/g, '')
-  return digits.startsWith('226') ? digits : `226${digits}`
+  return `+${digits.startsWith('226') ? digits : `226${digits}`}`
 }
 
-// ── POST /api/codes/envoyer-sms — envoie le code parent par SMS (Vonage) ──────
+// ── POST /api/codes/envoyer-sms — envoie le code parent par SMS (Africa's Talking) ──
 export async function POST(request: NextRequest) {
   try {
     const { id } = await request.json()
@@ -33,23 +33,30 @@ export async function POST(request: NextRequest) {
     }
 
     const params = new URLSearchParams({
-      api_key: process.env.VONAGE_API_KEY!,
-      api_secret: process.env.VONAGE_API_SECRET!,
-      to: formatTelVonage(codeParent.parent_tel),
-      from: process.env.VONAGE_FROM || 'EduSuivi',
-      text: `EduSuivi : votre code d'accès parent pour ${codeParent.eleve_prenom} ${codeParent.eleve_nom} est ${codeParent.code}. Valable jusqu'au ${codeParent.date_expiration}.`,
+      username: process.env.AT_USERNAME!,
+      to: formatTelAfricasTalking(codeParent.parent_tel),
+      message: `EduSuivi : votre code d'accès parent pour ${codeParent.eleve_prenom} ${codeParent.eleve_nom} est ${codeParent.code}. Valable jusqu'au ${codeParent.date_expiration}.`,
     })
+    if (process.env.AT_SENDER_ID) params.set('from', process.env.AT_SENDER_ID)
 
-    const res = await fetch('https://rest.nexmo.com/sms/json', {
+    const baseUrl = process.env.AT_USERNAME === 'sandbox'
+      ? 'https://api.sandbox.africastalking.com/version1/messaging'
+      : 'https://api.africastalking.com/version1/messaging'
+
+    const res = await fetch(baseUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'application/json',
+        apiKey: process.env.AT_API_KEY!,
+      },
       body: params.toString(),
     })
 
     const body = await res.json().catch(() => ({}))
-    const result = body.messages?.[0]
-    if (!res.ok || !result || result.status !== '0') {
-      throw new Error(result?.['error-text'] || `Échec de l'envoi (Vonage ${res.status})`)
+    const recipient = body.SMSMessageData?.Recipients?.[0]
+    if (!res.ok || !recipient || recipient.status !== 'Success') {
+      throw new Error(recipient?.status || body.SMSMessageData?.Message || `Échec de l'envoi (Africa's Talking ${res.status})`)
     }
 
     const { data, error } = await supabase
