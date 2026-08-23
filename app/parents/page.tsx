@@ -18,6 +18,7 @@ export default function ParentsPage() {
   const [eleve, setEleve] = useState<any>(null)
   const [tab, setTab] = useState<'notes' | 'devoirs' | 'absences'>('notes')
   const [showHelp, setShowHelp] = useState(false)
+  const [showObtenir, setShowObtenir] = useState(false)
 
   const handleDigit = (i: number, val: string) => {
     if (!/^\d*$/.test(val)) return
@@ -124,6 +125,7 @@ export default function ParentsPage() {
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg,#1a1a2e,#2563eb)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: "'Segoe UI',system-ui,sans-serif" }}>
       {showHelp && <HelpOverlay onClose={() => setShowHelp(false)} />}
+      {showObtenir && <ObtenirCodeOverlay onClose={() => setShowObtenir(false)} />}
       <div style={{ background: '#fff', borderRadius: 20, padding: '40px 36px', width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,.25)' }}>
 
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
@@ -174,9 +176,15 @@ export default function ParentsPage() {
         </button>
 
         <div style={{ borderTop: '1px solid #f0f0f0', paddingTop: 16, textAlign: 'center' }}>
-          <p style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>Vous n'avez pas de code ?</p>
-          <p style={{ fontSize: 12, color: '#666', lineHeight: 1.5 }}>
-            Contactez l'administration de l'école. Le code vous sera envoyé par SMS ou email.
+          <p style={{ fontSize: 12, color: '#888', marginBottom: 10 }}>Vous n'avez pas de code ?</p>
+          <button
+            onClick={() => setShowObtenir(true)}
+            style={{ width: '100%', padding: '11px 16px', background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 10, color: '#c2410c', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 8 }}
+          >
+            🟠 Obtenir un code avec Orange Money
+          </button>
+          <p style={{ fontSize: 11, color: '#999', lineHeight: 1.5, margin: 0 }}>
+            Ou contactez l'administration de l'école — le code vous sera envoyé par SMS ou email.
           </p>
         </div>
 
@@ -328,6 +336,144 @@ function AbsencesView() {
             <p style={{ margin: 0, fontSize: 12, color: '#888' }}>Arrivée 08h25 · Transport · Justifié</p>
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Obtenir un code (paiement Orange Money) ─────────────────────────────────
+const NUMERO_ORANGE_MONEY = '76 26 07 15'
+
+const DUREES: Record<string, { label: string; prix: number }> = {
+  semaine: { label: '1 semaine', prix: 500 },
+  mois: { label: '1 mois', prix: 1500 },
+  trimestre: { label: '1 trimestre', prix: 3500 },
+  annee: { label: '1 an', prix: 10000 },
+}
+
+function ObtenirCodeOverlay({ onClose }: { onClose: () => void }) {
+  const [form, setForm] = useState({
+    eleveMatricule: '', eleveNom: '', elevePrenom: '', eleveClasse: '',
+    parentNom: '', parentPrenom: '', parentEmail: '', parentTel: '',
+    validite: 'trimestre', telephoneExpediteur: '', referencePaiement: '',
+  })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [envoye, setEnvoye] = useState(false)
+
+  const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
+  const tarif = DUREES[form.validite]
+
+  const soumettre = async () => {
+    setError('')
+    if (!form.eleveMatricule || !form.eleveNom || !form.elevePrenom) {
+      return setError('Matricule, nom et prénom de l\'élève requis')
+    }
+    if (!form.parentNom || !form.parentPrenom || !form.parentTel) {
+      return setError('Nom, prénom et téléphone du parent requis')
+    }
+    if (!form.telephoneExpediteur || !form.referencePaiement) {
+      return setError('Numéro utilisé pour le paiement et référence de transaction requis')
+    }
+
+    setLoading(true)
+    try {
+      const res = await fetch('/api/codes/demander', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Erreur lors de l\'envoi de la demande')
+        setLoading(false)
+        return
+      }
+      setEnvoye(true)
+    } catch {
+      setError('Erreur de connexion. Vérifiez votre connexion internet.')
+    }
+    setLoading(false)
+  }
+
+  const inputStyle: React.CSSProperties = { width: '100%', padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box' }
+  const labelStyle: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 600, color: '#444', marginBottom: 5 }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', justifyContent: 'center', padding: '5vh 20px', overflowY: 'auto' }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, background: '#fff' }}>
+          <strong style={{ fontSize: 15 }}>🟠 Obtenir un code — Orange Money</strong>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: '#888' }}>✕</button>
+        </div>
+
+        {envoye ? (
+          <div style={{ padding: '32px 24px', textAlign: 'center' }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
+            <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 8px' }}>Demande envoyée</h3>
+            <p style={{ fontSize: 13, color: '#666', lineHeight: 1.6, marginBottom: 20 }}>
+              Votre demande est en cours de vérification par l'administration. Une fois votre paiement confirmé,
+              vous recevrez votre code d'accès par SMS et/ou email.
+            </p>
+            <button onClick={onClose} style={{ padding: '10px 24px', background: '#1a1a2e', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              Fermer
+            </button>
+          </div>
+        ) : (
+          <div style={{ padding: 20 }}>
+            <div style={{ background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 10, padding: 14, marginBottom: 18 }}>
+              <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 700, color: '#c2410c' }}>Comment ça marche</p>
+              <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: '#7c2d12', lineHeight: 1.7 }}>
+                <li>Choisissez une durée ci-dessous et notez le montant.</li>
+                <li>Envoyez ce montant via <strong>Orange Money</strong> au <strong>{NUMERO_ORANGE_MONEY}</strong>.</li>
+                <li>Notez la référence de transaction reçue par SMS après le transfert.</li>
+                <li>Remplissez ce formulaire avec cette référence — votre code sera activé après vérification.</li>
+              </ol>
+            </div>
+
+            <p style={labelStyle}>Durée d'accès souhaitée</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+              {Object.entries(DUREES).map(([k, v]) => (
+                <button key={k} onClick={() => set('validite', k)}
+                  style={{ padding: '9px 10px', borderRadius: 8, border: form.validite === k ? '2px solid #c2410c' : '1px solid #e5e7eb', background: form.validite === k ? '#fff7ed' : '#fff', cursor: 'pointer', textAlign: 'left' }}>
+                  <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: '#1a1a2e' }}>{v.label}</p>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#c2410c' }}>{v.prix.toLocaleString()} FCFA</p>
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+              <div><p style={labelStyle}>Matricule de l'élève</p><input style={inputStyle} value={form.eleveMatricule} onChange={e => set('eleveMatricule', e.target.value)} placeholder="2024-001" /></div>
+              <div><p style={labelStyle}>Classe</p><input style={inputStyle} value={form.eleveClasse} onChange={e => set('eleveClasse', e.target.value)} placeholder="3ème A" /></div>
+              <div><p style={labelStyle}>Prénom élève</p><input style={inputStyle} value={form.elevePrenom} onChange={e => set('elevePrenom', e.target.value)} /></div>
+              <div><p style={labelStyle}>Nom élève</p><input style={inputStyle} value={form.eleveNom} onChange={e => set('eleveNom', e.target.value)} /></div>
+              <div><p style={labelStyle}>Votre prénom</p><input style={inputStyle} value={form.parentPrenom} onChange={e => set('parentPrenom', e.target.value)} /></div>
+              <div><p style={labelStyle}>Votre nom</p><input style={inputStyle} value={form.parentNom} onChange={e => set('parentNom', e.target.value)} /></div>
+              <div><p style={labelStyle}>Votre téléphone</p><input style={inputStyle} value={form.parentTel} onChange={e => set('parentTel', e.target.value)} placeholder="70 00 00 00" /></div>
+              <div><p style={labelStyle}>Votre email (optionnel)</p><input style={inputStyle} type="email" value={form.parentEmail} onChange={e => set('parentEmail', e.target.value)} /></div>
+            </div>
+
+            <div style={{ borderTop: '1px dashed #e5e7eb', paddingTop: 12, marginTop: 6, marginBottom: 6 }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: '#1a1a2e', marginBottom: 8 }}>Informations du paiement Orange Money</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 4 }}>
+                <div><p style={labelStyle}>Numéro utilisé pour payer</p><input style={inputStyle} value={form.telephoneExpediteur} onChange={e => set('telephoneExpediteur', e.target.value)} placeholder="70 00 00 00" /></div>
+                <div><p style={labelStyle}>Référence de la transaction</p><input style={inputStyle} value={form.referencePaiement} onChange={e => set('referencePaiement', e.target.value)} placeholder="Reçue par SMS Orange" /></div>
+              </div>
+            </div>
+
+            {error && (
+              <p style={{ color: '#dc2626', fontSize: 12.5, margin: '8px 0', background: '#fef2f2', padding: '8px 12px', borderRadius: 8 }}>{error}</p>
+            )}
+
+            <button
+              onClick={soumettre}
+              disabled={loading}
+              style={{ width: '100%', marginTop: 10, padding: 12, background: loading ? '#fdba74' : '#c2410c', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}
+            >
+              {loading ? '⏳ Envoi...' : `Envoyer ma demande — ${tarif.prix.toLocaleString()} FCFA payés`}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

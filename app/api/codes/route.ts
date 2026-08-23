@@ -106,17 +106,40 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ── PATCH /api/codes — activer/désactiver un code ─────────────────────────────
+// ── PATCH /api/codes — activer/désactiver un code, confirmer/rejeter un paiement ──
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
-    const { id, actif, smsSent, emailSent, dateExpiration } = body
+    const { id, actif, smsSent, emailSent, dateExpiration, confirmerPaiement, rejeterPaiement, motifRejet } = body
 
     const updates: any = {}
     if (actif !== undefined) updates.actif = actif
     if (smsSent !== undefined) updates.sms_sent = smsSent
     if (emailSent !== undefined) updates.email_sent = emailSent
     if (dateExpiration !== undefined) updates.date_expiration = dateExpiration
+
+    if (confirmerPaiement) {
+      const { data: existing, error: fetchError } = await supabase
+        .from('codes_parents')
+        .select('validite')
+        .eq('id', id)
+        .single()
+      if (fetchError || !existing) {
+        return NextResponse.json({ error: 'Code introuvable' }, { status: 404 })
+      }
+      const jours = VALIDITES[existing.validite]
+      updates.actif = true
+      updates.statut_paiement = 'confirme'
+      updates.date_expiration = addDays(jours || 30)
+    }
+
+    if (rejeterPaiement) {
+      if (!motifRejet) {
+        return NextResponse.json({ error: 'Motif de rejet requis' }, { status: 400 })
+      }
+      updates.statut_paiement = 'rejete'
+      updates.motif_rejet_paiement = motifRejet
+    }
 
     const { data, error } = await supabase
       .from('codes_parents')

@@ -21,6 +21,12 @@ interface CodeParent {
   actif: boolean
   sms_sent: boolean
   email_sent: boolean
+  statut_paiement: 'en_attente' | 'confirme' | 'rejete'
+  operateur_paiement: string | null
+  reference_paiement: string | null
+  telephone_expediteur: string | null
+  montant: number | null
+  motif_rejet_paiement: string | null
 }
 
 const ELEVES_DEMO = [
@@ -157,9 +163,10 @@ export function AdminCodes() {
     return codes.filter(c => {
       const txt = `${c.eleve_nom} ${c.eleve_prenom} ${c.code} ${c.eleve_classe} ${c.parent_nom} ${c.parent_prenom}`.toLowerCase()
       if (!txt.includes(search.toLowerCase())) return false
+      if (filterStatut === 'paiement_attente') return c.statut_paiement === 'en_attente'
       if (filterStatut === 'actif') return c.actif && !isExpired(c.date_expiration)
       if (filterStatut === 'expire') return isExpired(c.date_expiration)
-      if (filterStatut === 'inactif') return !c.actif
+      if (filterStatut === 'inactif') return !c.actif && c.statut_paiement !== 'en_attente'
       return true
     }).sort((a, b) => b.date_creation.localeCompare(a.date_creation))
   }, [codes, search, filterStatut])
@@ -168,7 +175,8 @@ export function AdminCodes() {
     total: codes.length,
     actifs: codes.filter(c => c.actif && !isExpired(c.date_expiration)).length,
     expires: codes.filter(c => isExpired(c.date_expiration)).length,
-    inactifs: codes.filter(c => !c.actif).length,
+    inactifs: codes.filter(c => !c.actif && c.statut_paiement !== 'en_attente').length,
+    paiementsAttente: codes.filter(c => c.statut_paiement === 'en_attente').length,
   }), [codes])
 
   // Générer un code
@@ -271,6 +279,50 @@ export function AdminCodes() {
     }
   }
 
+  // Confirmer un paiement Orange Money en attente
+  const confirmerPaiement = async (c: CodeParent) => {
+    setConfirm({
+      msg: `Confirmer le paiement de ${c.montant?.toLocaleString()} FCFA (réf. ${c.reference_paiement}) pour ${c.parent_prenom} ${c.parent_nom} ? Le code sera activé.`,
+      onOui: async () => {
+        setConfirm(null)
+        try {
+          const res = await fetch('/api/codes', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: c.id, confirmerPaiement: true }),
+          })
+          const data = await res.json()
+          if (!res.ok) throw new Error(data.error)
+          await chargerCodes()
+          if (selected?.id === c.id) setSelected(data.data)
+          toast2('Paiement confirmé — code activé ✓')
+        } catch (e: any) {
+          toast2(e.message || 'Erreur lors de la confirmation', 'error')
+        }
+      }
+    })
+  }
+
+  // Rejeter un paiement Orange Money en attente
+  const rejeterPaiement = async (c: CodeParent) => {
+    const motif = window.prompt(`Motif du rejet du paiement de ${c.parent_prenom} ${c.parent_nom} ?`)
+    if (!motif) return
+    try {
+      const res = await fetch('/api/codes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: c.id, rejeterPaiement: true, motifRejet: motif }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      await chargerCodes()
+      if (selected?.id === c.id) setSelected(data.data)
+      toast2('Paiement rejeté', 'error')
+    } catch (e: any) {
+      toast2(e.message || 'Erreur lors du rejet', 'error')
+    }
+  }
+
   // Envoi SMS réel (Twilio, via /api/codes/envoyer-sms)
   const envoyerSMS = async (c: CodeParent) => {
     if (!c.parent_tel) return toast2('Aucun numéro de téléphone', 'error')
@@ -316,6 +368,8 @@ export function AdminCodes() {
   }
 
   const statutCode = (c: CodeParent) => {
+    if (c.statut_paiement === 'en_attente') return { label:'Paiement en attente', color:'#d97706', bg:'#fff7ed' }
+    if (c.statut_paiement === 'rejete') return { label:'Paiement rejeté', color:'#dc2626', bg:'#fef2f2' }
     if (!c.actif) return { label:'Désactivé', color:'#888', bg:'#f3f4f6' }
     if (isExpired(c.date_expiration)) return { label:'Expiré', color:'#dc2626', bg:'#fef2f2' }
     return { label:'Actif', color:'#059669', bg:'#f0fdf4' }
@@ -338,12 +392,13 @@ export function AdminCodes() {
       </div>
 
       {/* Stats */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:20 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:12, marginBottom:20 }}>
         {[
-          { label:'Total',      val:stats.total,    color:'#2563eb', icon:'🔑' },
-          { label:'Actifs',     val:stats.actifs,   color:'#059669', icon:'✅' },
-          { label:'Expirés',    val:stats.expires,  color:'#dc2626', icon:'⏰' },
-          { label:'Désactivés', val:stats.inactifs, color:'#888',    icon:'🔒' },
+          { label:'Total',              val:stats.total,            color:'#2563eb', icon:'🔑' },
+          { label:'Paiements en attente', val:stats.paiementsAttente, color:'#d97706', icon:'💰' },
+          { label:'Actifs',             val:stats.actifs,           color:'#059669', icon:'✅' },
+          { label:'Expirés',            val:stats.expires,          color:'#dc2626', icon:'⏰' },
+          { label:'Désactivés',         val:stats.inactifs,         color:'#888',    icon:'🔒' },
         ].map(s => (
           <div key={s.label} style={{ background:'#fff', borderRadius:12, padding:'14px 16px', boxShadow:'0 1px 4px rgba(0,0,0,.06)', borderLeft:`4px solid ${s.color}`, display:'flex', alignItems:'center', gap:12 }}>
             <span style={{ fontSize:22 }}>{s.icon}</span>
@@ -365,10 +420,11 @@ export function AdminCodes() {
         />
         <div style={{ display:'flex', gap:6 }}>
           {[
-            { val:'tous',    label:'Tous' },
-            { val:'actif',   label:'✅ Actifs' },
-            { val:'expire',  label:'⏰ Expirés' },
-            { val:'inactif', label:'🔒 Désactivés' },
+            { val:'tous',             label:'Tous' },
+            { val:'paiement_attente', label:'💰 Paiements en attente' },
+            { val:'actif',            label:'✅ Actifs' },
+            { val:'expire',           label:'⏰ Expirés' },
+            { val:'inactif',          label:'🔒 Désactivés' },
           ].map(f => (
             <button key={f.val} onClick={() => setFilterStatut(f.val)}
               style={{ padding:'7px 14px', borderRadius:8, fontSize:12, cursor:'pointer', border:'1px solid #e5e7eb', background: filterStatut===f.val ? '#1a1a2e' : '#fff', color: filterStatut===f.val ? '#fff' : '#666', fontWeight: filterStatut===f.val ? 600 : 400 }}>
@@ -552,6 +608,27 @@ export function AdminCodes() {
             ))}
           </div>
 
+          {/* Paiement Orange Money */}
+          {selected.operateur_paiement && (
+            <div style={{ border:`1px solid ${selected.statut_paiement === 'en_attente' ? '#fbbf24' : '#e5e7eb'}`, background: selected.statut_paiement === 'en_attente' ? '#fffbeb' : '#fff', borderRadius:10, padding:14, marginBottom:16 }}>
+              <p style={{ margin:'0 0 10px', fontWeight:600, fontSize:13 }}>💰 Paiement Orange Money</p>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom: selected.statut_paiement === 'en_attente' ? 12 : 0 }}>
+                <div><p style={{ margin:0, fontSize:11, color:'#888' }}>Montant</p><p style={{ margin:0, fontSize:13, fontWeight:600 }}>{selected.montant?.toLocaleString()} FCFA</p></div>
+                <div><p style={{ margin:0, fontSize:11, color:'#888' }}>Référence transaction</p><p style={{ margin:0, fontSize:13, fontWeight:600 }}>{selected.reference_paiement}</p></div>
+                <div><p style={{ margin:0, fontSize:11, color:'#888' }}>Numéro expéditeur</p><p style={{ margin:0, fontSize:13, fontWeight:600 }}>{selected.telephone_expediteur}</p></div>
+                {selected.statut_paiement === 'rejete' && selected.motif_rejet_paiement && (
+                  <div><p style={{ margin:0, fontSize:11, color:'#888' }}>Motif du rejet</p><p style={{ margin:0, fontSize:13, fontWeight:600, color:'#dc2626' }}>{selected.motif_rejet_paiement}</p></div>
+                )}
+              </div>
+              {selected.statut_paiement === 'en_attente' && (
+                <div style={{ display:'flex', gap:8 }}>
+                  <button style={{ ...BP, flex:1, background:'#059669' }} onClick={() => confirmerPaiement(selected)}>✅ Confirmer le paiement</button>
+                  <button style={{ ...BD, flex:1 }} onClick={() => rejeterPaiement(selected)}>❌ Rejeter</button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* SMS */}
           <div style={{ border:'1px solid #e5e7eb', borderRadius:10, padding:14, marginBottom:10 }}>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
@@ -561,7 +638,7 @@ export function AdminCodes() {
               </div>
               {selected.sms_sent
                 ? <span style={{ padding:'4px 12px', borderRadius:99, background:'#f0fdf4', color:'#059669', fontSize:12, fontWeight:600 }}>✓ Envoyé</span>
-                : <button onClick={() => envoyerSMS(selected)} disabled={sending==='sms-'+selected.id || !selected.parent_tel}
+                : <button onClick={() => envoyerSMS(selected)} disabled={sending==='sms-'+selected.id || !selected.parent_tel || selected.statut_paiement === 'en_attente'}
                     style={{ ...BP, fontSize:12, padding:'7px 14px', background: sending==='sms-'+selected.id ? '#93c5fd' : '#1a1a2e' }}>
                     {sending==='sms-'+selected.id ? '⏳...' : 'Envoyer SMS'}
                   </button>
@@ -578,7 +655,7 @@ export function AdminCodes() {
               </div>
               {selected.email_sent
                 ? <span style={{ padding:'4px 12px', borderRadius:99, background:'#f0fdf4', color:'#059669', fontSize:12, fontWeight:600 }}>✓ Envoyé</span>
-                : <button onClick={() => envoyerEmail(selected)} disabled={sending==='email-'+selected.id || !selected.parent_email}
+                : <button onClick={() => envoyerEmail(selected)} disabled={sending==='email-'+selected.id || !selected.parent_email || selected.statut_paiement === 'en_attente'}
                     style={{ ...BP, fontSize:12, padding:'7px 14px', background: sending==='email-'+selected.id ? '#93c5fd' : '#1a1a2e' }}>
                     {sending==='email-'+selected.id ? '⏳...' : 'Envoyer email'}
                   </button>
