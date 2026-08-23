@@ -12,6 +12,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [activeEcole, setActiveEcole] = useState<{ id: string; nom: string } | null>(null)
 
   useEffect(() => {
     const stored = localStorage.getItem('user')
@@ -22,11 +23,26 @@ export default function DashboardPage() {
     }
     try {
       setUser(JSON.parse(stored))
+      const id = localStorage.getItem('activeEcoleId')
+      const nom = localStorage.getItem('activeEcoleNom')
+      if (id) setActiveEcole({ id, nom: nom || '' })
     } catch {
       router.push('/login')
     }
     setLoading(false)
   }, [router])
+
+  const entrerDansEcole = (id: string, nom: string) => {
+    localStorage.setItem('activeEcoleId', id)
+    localStorage.setItem('activeEcoleNom', nom)
+    setActiveEcole({ id, nom })
+  }
+
+  const sortirDeLEcole = () => {
+    localStorage.removeItem('activeEcoleId')
+    localStorage.removeItem('activeEcoleNom')
+    setActiveEcole(null)
+  }
 
   if (loading) {
     return (
@@ -51,8 +67,22 @@ export default function DashboardPage() {
     const logout = () => {
       localStorage.removeItem('accessToken')
       localStorage.removeItem('user')
+      sortirDeLEcole()
       router.push('/login')
     }
+
+    if (activeEcole) {
+      // Le super admin gère cette école comme le ferait son propre administrateur.
+      const sessionAsAdmin = { ...user, role: 'admin', ecoleId: activeEcole.id }
+      return (
+        <MainApp
+          initialUser={sessionAsAdmin}
+          superAdminEcoleNom={activeEcole.nom}
+          onExitEcole={() => { sortirDeLEcole() }}
+        />
+      )
+    }
+
     return (
       <div style={{ minHeight: '100vh', background: '#f4f6fb', fontFamily: "'Segoe UI',system-ui,sans-serif" }}>
         <div style={{ background: '#1a1a2e', color: '#fff', padding: '14px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -62,7 +92,7 @@ export default function DashboardPage() {
           </button>
         </div>
         <div style={{ padding: '28px 32px' }}>
-          <SuperAdminApp session={user} />
+          <SuperAdminApp session={user} onEnterEcole={entrerDansEcole} />
         </div>
       </div>
     )

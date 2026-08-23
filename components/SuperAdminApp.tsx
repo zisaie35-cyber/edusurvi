@@ -8,11 +8,13 @@ interface Ecole {
   id: string
   nom: string
   ville: string | null
+  pays: string | null
   telephone: string | null
   email: string | null
   email_alerte: string | null
   telephone_alerte: string | null
   actif: boolean
+  nb_eleves: number
   created_at: string
 }
 
@@ -62,16 +64,18 @@ function Input({ label, ...props }: any) {
 const BP: React.CSSProperties = { padding: '9px 20px', background: '#1a1a2e', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }
 
 // ─── COMPOSANT PRINCIPAL ──────────────────────────────────────────────────────
-export default function SuperAdminApp({ session }: { session: any }) {
+export default function SuperAdminApp({ session, onEnterEcole }: { session: any; onEnterEcole?: (id: string, nom: string) => void }) {
   const [ecoles, setEcoles] = useState<Ecole[]>([])
   const [admins, setAdmins] = useState<Admin[]>([])
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState<any>(null)
   const [modalEcole, setModalEcole] = useState(false)
+  const [modalEditEcole, setModalEditEcole] = useState<Ecole | null>(null)
   const [modalAdmin, setModalAdmin] = useState<Ecole | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const [formEcole, setFormEcole] = useState({ nom: '', ville: '', telephone: '', email: '', emailAlerte: '', telephoneAlerte: '' })
+  const [formEcole, setFormEcole] = useState({ nom: '', ville: '', pays: 'Burkina Faso', telephone: '', email: '', emailAlerte: '', telephoneAlerte: '' })
+  const [formEditEcole, setFormEditEcole] = useState({ nom: '', ville: '', pays: '', telephone: '' })
   const [formAdmin, setFormAdmin] = useState({ nom: '', prenom: '', email: '', password: '' })
 
   const toast2 = (msg: string, type = 'success') => {
@@ -119,10 +123,36 @@ export default function SuperAdminApp({ session }: { session: any }) {
       if (!res.ok) throw new Error(data.error)
       await charger()
       setModalEcole(false)
-      setFormEcole({ nom: '', ville: '', telephone: '', email: '', emailAlerte: '', telephoneAlerte: '' })
+      setFormEcole({ nom: '', ville: '', pays: 'Burkina Faso', telephone: '', email: '', emailAlerte: '', telephoneAlerte: '' })
       toast2('École créée ✓')
     } catch (e: any) {
       toast2(e.message || 'Erreur lors de la création', 'error')
+    }
+    setSaving(false)
+  }
+
+  const ouvrirEdition = (e: Ecole) => {
+    setFormEditEcole({ nom: e.nom || '', ville: e.ville || '', pays: e.pays || '', telephone: e.telephone || '' })
+    setModalEditEcole(e)
+  }
+
+  const enregistrerEdition = async () => {
+    if (!modalEditEcole) return
+    if (!formEditEcole.nom) return toast2('Nom de l\'école requis', 'error')
+    setSaving(true)
+    try {
+      const res = await authFetch('/api/ecoles', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: modalEditEcole.id, ...formEditEcole }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      await charger()
+      setModalEditEcole(null)
+      toast2('École mise à jour ✓')
+    } catch (e: any) {
+      toast2(e.message || 'Erreur lors de la mise à jour', 'error')
     }
     setSaving(false)
   }
@@ -229,9 +259,13 @@ export default function SuperAdminApp({ session }: { session: any }) {
                         {e.actif ? 'Active' : 'Désactivée'}
                       </span>
                     </div>
-                    <p style={{ margin: 0, fontSize: 12, color: '#888' }}>{e.ville || '—'}{e.telephone ? ` · ${e.telephone}` : ''}{e.email ? ` · ${e.email}` : ''}</p>
+                    <p style={{ margin: 0, fontSize: 12, color: '#888' }}>{e.ville || '—'}{e.pays ? `, ${e.pays}` : ''}{e.telephone ? ` · ${e.telephone}` : ''}{e.email ? ` · ${e.email}` : ''} · 🎓 {e.nb_eleves || 0} élève{(e.nb_eleves || 0) > 1 ? 's' : ''}</p>
                   </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {onEnterEcole && (
+                      <button style={{ ...BP, background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }} onClick={() => onEnterEcole(e.id, e.nom)}>🏢 Gérer cette école →</button>
+                    )}
+                    <button style={{ ...BP, background: '#f5f3ff', color: '#7c3aed', border: '1px solid #ddd6fe' }} onClick={() => ouvrirEdition(e)}>✏️ Modifier</button>
                     <button style={{ ...BP, background: '#f0fdf4', color: '#059669', border: '1px solid #86efac' }} onClick={() => setModalAdmin(e)}>+ Admin</button>
                     <button style={{ ...BP, background: e.actif ? '#fef2f2' : '#f0fdf4', color: e.actif ? '#dc2626' : '#059669', border: `1px solid ${e.actif ? '#fecaca' : '#86efac'}` }} onClick={() => toggleEcole(e)}>
                       {e.actif ? 'Désactiver' : 'Activer'}
@@ -269,6 +303,7 @@ export default function SuperAdminApp({ session }: { session: any }) {
         <Modal title="Nouvelle école" onClose={() => setModalEcole(false)}>
           <Input label="Nom de l'école" value={formEcole.nom} onChange={(e: any) => setFormEcole({ ...formEcole, nom: e.target.value })} placeholder="Collège Notre-Dame" />
           <Input label="Ville" value={formEcole.ville} onChange={(e: any) => setFormEcole({ ...formEcole, ville: e.target.value })} placeholder="Bobo-Dioulasso" />
+          <Input label="Pays" value={formEcole.pays} onChange={(e: any) => setFormEcole({ ...formEcole, pays: e.target.value })} placeholder="Burkina Faso" />
           <Input label="Téléphone" value={formEcole.telephone} onChange={(e: any) => setFormEcole({ ...formEcole, telephone: e.target.value })} />
           <Input label="Email" type="email" value={formEcole.email} onChange={(e: any) => setFormEcole({ ...formEcole, email: e.target.value })} />
           <Input label="Email d'alerte paiements (optionnel)" type="email" value={formEcole.emailAlerte} onChange={(e: any) => setFormEcole({ ...formEcole, emailAlerte: e.target.value })} placeholder="Par défaut si vide" />
@@ -276,6 +311,19 @@ export default function SuperAdminApp({ session }: { session: any }) {
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
             <button onClick={() => setModalEcole(false)} style={{ padding: '9px 20px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>Annuler</button>
             <button onClick={creerEcole} disabled={saving} style={{ ...BP, background: saving ? '#93c5fd' : '#1a1a2e' }}>{saving ? '⏳...' : 'Créer l\'école'}</button>
+          </div>
+        </Modal>
+      )}
+
+      {modalEditEcole && (
+        <Modal title={`Modifier — ${modalEditEcole.nom}`} onClose={() => setModalEditEcole(null)}>
+          <Input label="Nom de l'école" value={formEditEcole.nom} onChange={(e: any) => setFormEditEcole({ ...formEditEcole, nom: e.target.value })} />
+          <Input label="Ville" value={formEditEcole.ville} onChange={(e: any) => setFormEditEcole({ ...formEditEcole, ville: e.target.value })} />
+          <Input label="Pays" value={formEditEcole.pays} onChange={(e: any) => setFormEditEcole({ ...formEditEcole, pays: e.target.value })} />
+          <Input label="Téléphone" value={formEditEcole.telephone} onChange={(e: any) => setFormEditEcole({ ...formEditEcole, telephone: e.target.value })} />
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
+            <button onClick={() => setModalEditEcole(null)} style={{ padding: '9px 20px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>Annuler</button>
+            <button onClick={enregistrerEdition} disabled={saving} style={{ ...BP, background: saving ? '#93c5fd' : '#1a1a2e' }}>{saving ? '⏳...' : 'Enregistrer'}</button>
           </div>
         </Modal>
       )}

@@ -28,7 +28,15 @@ export async function GET(request: NextRequest) {
     if (estSuperAdmin) {
       const { data, error } = await supabase.from('ecoles').select('*').order('created_at', { ascending: false })
       if (error) throw error
-      return NextResponse.json({ success: true, data })
+
+      const { data: eleves } = await supabase.from('eleves').select('ecole_id')
+      const counts: Record<string, number> = {}
+      for (const el of eleves || []) {
+        counts[el.ecole_id] = (counts[el.ecole_id] || 0) + 1
+      }
+      const enrichi = (data || []).map((e: any) => ({ ...e, nb_eleves: counts[e.id] || 0 }))
+
+      return NextResponse.json({ success: true, data: enrichi })
     }
 
     const { data, error } = await supabase
@@ -49,7 +57,7 @@ export async function POST(request: NextRequest) {
     await requireSession(request, ['super_admin'])
 
     const body = await request.json()
-    const { nom, ville, telephone, email, emailAlerte, telephoneAlerte } = body
+    const { nom, ville, pays, telephone, email, emailAlerte, telephoneAlerte } = body
     if (!nom) {
       return NextResponse.json({ error: 'Nom de l\'école requis' }, { status: 400 })
     }
@@ -57,7 +65,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase
       .from('ecoles')
       .insert({
-        nom, ville: ville || null, telephone: telephone || null, email: email || null,
+        nom, ville: ville || null, pays: pays || 'Burkina Faso', telephone: telephone || null, email: email || null,
         email_alerte: emailAlerte || null, telephone_alerte: telephoneAlerte || null,
         actif: true,
       })
@@ -83,12 +91,13 @@ export async function PATCH(request: NextRequest) {
     await requireSession(request, ['super_admin'])
 
     const body = await request.json()
-    const { id, nom, ville, telephone, email, emailAlerte, telephoneAlerte, actif } = body
+    const { id, nom, ville, pays, telephone, email, emailAlerte, telephoneAlerte, actif } = body
     if (!id) return NextResponse.json({ error: 'ID requis' }, { status: 400 })
 
     const updates: any = {}
     if (nom !== undefined) updates.nom = nom
     if (ville !== undefined) updates.ville = ville
+    if (pays !== undefined) updates.pays = pays
     if (telephone !== undefined) updates.telephone = telephone
     if (email !== undefined) updates.email = email
     if (emailAlerte !== undefined) updates.email_alerte = emailAlerte

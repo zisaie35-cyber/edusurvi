@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import bcrypt from 'bcryptjs'
 import { randomUUID } from 'crypto'
-import { requireSession } from '@/lib/auth'
+import { requireSession, resolveEcoleId } from '@/lib/auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -28,8 +28,9 @@ function shape(row: any) {
 export async function GET(request: NextRequest) {
   try {
     const session = await requireSession(request, ['admin', 'super_admin', 'professeur', 'surveillant'])
-    if (!session.ecoleId) {
-      return NextResponse.json({ error: 'Compte non rattaché à une école' }, { status: 403 })
+    const ecoleId = resolveEcoleId(session, request)
+    if (!ecoleId) {
+      return NextResponse.json({ error: 'Compte non rattaché à une école (sélectionnez une école)' }, { status: 403 })
     }
 
     const { searchParams } = new URL(request.url)
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('eleves')
       .select('*, users(nom, prenom, email)')
-      .eq('ecole_id', session.ecoleId)
+      .eq('ecole_id', ecoleId)
     if (classeId) query = query.eq('classe_id', classeId)
 
     const { data, error } = await query
@@ -58,8 +59,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await requireSession(request, ['admin', 'super_admin'])
-    if (!session.ecoleId) {
-      return NextResponse.json({ error: 'Compte non rattaché à une école' }, { status: 403 })
+    const ecoleId = resolveEcoleId(session, request)
+    if (!ecoleId) {
+      return NextResponse.json({ error: 'Compte non rattaché à une école (sélectionnez une école)' }, { status: 403 })
     }
 
     const body = await request.json()
@@ -68,12 +70,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Nom, prénom et matricule requis' }, { status: 400 })
     }
 
-    const emailFinal = email || `eleve-${matricule.replace(/\W+/g, '-')}@${session.ecoleId}.local`
+    const emailFinal = email || `eleve-${matricule.replace(/\W+/g, '-')}@${ecoleId}.local`
     const password = await bcrypt.hash(randomUUID(), 10)
 
     const { data: user, error: userError } = await supabase
       .from('users')
-      .insert({ nom, prenom, email: emailFinal, password, role: 'eleve', ecole_id: session.ecoleId, actif: true })
+      .insert({ nom, prenom, email: emailFinal, password, role: 'eleve', ecole_id: ecoleId, actif: true })
       .select('id')
       .single()
 
@@ -93,7 +95,7 @@ export async function POST(request: NextRequest) {
         adresse: adresse || null,
         nationalite: nationalite || 'Burkinabè',
         classe_id: classeId || null,
-        ecole_id: session.ecoleId,
+        ecole_id: ecoleId,
       })
       .select('*, users(nom, prenom, email)')
       .single()
@@ -117,8 +119,9 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const session = await requireSession(request, ['admin', 'super_admin'])
-    if (!session.ecoleId) {
-      return NextResponse.json({ error: 'Compte non rattaché à une école' }, { status: 403 })
+    const ecoleId = resolveEcoleId(session, request)
+    if (!ecoleId) {
+      return NextResponse.json({ error: 'Compte non rattaché à une école (sélectionnez une école)' }, { status: 403 })
     }
 
     const body = await request.json()
@@ -126,7 +129,7 @@ export async function PATCH(request: NextRequest) {
     if (!id) return NextResponse.json({ error: 'ID requis' }, { status: 400 })
 
     const { data: cible } = await supabase.from('eleves').select('user_id, ecole_id').eq('id', id).single()
-    if (!cible || cible.ecole_id !== session.ecoleId) {
+    if (!cible || cible.ecole_id !== ecoleId) {
       return NextResponse.json({ error: 'Élève introuvable' }, { status: 404 })
     }
 
@@ -164,8 +167,9 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await requireSession(request, ['admin', 'super_admin'])
-    if (!session.ecoleId) {
-      return NextResponse.json({ error: 'Compte non rattaché à une école' }, { status: 403 })
+    const ecoleId = resolveEcoleId(session, request)
+    if (!ecoleId) {
+      return NextResponse.json({ error: 'Compte non rattaché à une école (sélectionnez une école)' }, { status: 403 })
     }
 
     const { searchParams } = new URL(request.url)
@@ -173,7 +177,7 @@ export async function DELETE(request: NextRequest) {
     if (!id) return NextResponse.json({ error: 'ID requis' }, { status: 400 })
 
     const { data: cible } = await supabase.from('eleves').select('user_id, ecole_id').eq('id', id).single()
-    if (!cible || cible.ecole_id !== session.ecoleId) {
+    if (!cible || cible.ecole_id !== ecoleId) {
       return NextResponse.json({ error: 'Élève introuvable' }, { status: 404 })
     }
 

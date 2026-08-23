@@ -1,7 +1,7 @@
 // app/api/points/retraits/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { requireSession } from '@/lib/auth'
+import { requireSession, resolveEcoleId } from '@/lib/auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,8 +12,9 @@ const supabase = createClient(
 export async function POST(request: NextRequest) {
   try {
     const session = await requireSession(request)
-    if (!session.ecoleId) {
-      return NextResponse.json({ error: 'Compte non rattaché à une école' }, { status: 403 })
+    const ecoleId = resolveEcoleId(session, request)
+    if (!ecoleId) {
+      return NextResponse.json({ error: 'Compte non rattaché à une école (sélectionnez une école)' }, { status: 403 })
     }
 
     const body = await request.json()
@@ -31,14 +32,14 @@ export async function POST(request: NextRequest) {
       .from('points_transactions')
       .select('points')
       .eq('user_id', userId)
-      .eq('ecole_id', session.ecoleId)
+      .eq('ecole_id', ecoleId)
     const total = (transactions || []).reduce((s: number, t: any) => s + t.points, 0)
 
     const { data: retraits } = await supabase
       .from('points_retraits')
       .select('points, statut')
       .eq('user_id', userId)
-      .eq('ecole_id', session.ecoleId)
+      .eq('ecole_id', ecoleId)
       .in('statut', ['en_attente', 'valide_ecole', 'valide_central', 'paye'])
     const retires = (retraits || []).reduce((s: number, r: any) => s + r.points, 0)
 
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
         user_nom: userNom,
         user_prenom: userPrenom,
         user_role: userRole,
-        ecole_id: session.ecoleId,
+        ecole_id: ecoleId,
         points,
         montant_fcfa: montantFcfa,
         operateur,
@@ -78,8 +79,9 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const session = await requireSession(request, ['admin', 'super_admin'])
-    if (!session.ecoleId) {
-      return NextResponse.json({ error: 'Compte non rattaché à une école' }, { status: 403 })
+    const ecoleId = resolveEcoleId(session, request)
+    if (!ecoleId) {
+      return NextResponse.json({ error: 'Compte non rattaché à une école (sélectionnez une école)' }, { status: 403 })
     }
 
     const body = await request.json()
@@ -91,7 +93,7 @@ export async function PATCH(request: NextRequest) {
       .select('ecole_id')
       .eq('id', id)
       .single()
-    if (fetchError || !existing || existing.ecole_id !== session.ecoleId) {
+    if (fetchError || !existing || existing.ecole_id !== ecoleId) {
       return NextResponse.json({ error: 'Retrait introuvable' }, { status: 404 })
     }
 

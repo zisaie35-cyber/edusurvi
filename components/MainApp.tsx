@@ -429,7 +429,7 @@ function getNavItems(role: string) {
 }
 
 // ─── App principale ───────────────────────────────────────────────────────────
-export default function MainApp({ initialUser }: { initialUser: any }) {
+export default function MainApp({ initialUser, superAdminEcoleNom, onExitEcole }: { initialUser: any, superAdminEcoleNom?: string, onExitEcole?: () => void }) {
   const router = useRouter()
   const [data, setData] = useState(initData())
   const [session] = useState(initialUser)
@@ -446,6 +446,8 @@ export default function MainApp({ initialUser }: { initialUser: any }) {
   const logout = () => {
     localStorage.removeItem('accessToken')
     localStorage.removeItem('user')
+    localStorage.removeItem('activeEcoleId')
+    localStorage.removeItem('activeEcoleNom')
     router.push('/login')
   }
 
@@ -552,6 +554,17 @@ export default function MainApp({ initialUser }: { initialUser: any }) {
           ))}
         </nav>
         <div style={{padding:"16px",borderTop:"1px solid rgba(255,255,255,0.08)"}}>
+          {superAdminEcoleNom && (
+            <div style={{marginBottom:10,padding:"8px 10px",background:"rgba(124,58,237,0.25)",border:"1px solid rgba(124,58,237,0.5)",borderRadius:8}}>
+              {sideOpen && <p style={{margin:"0 0 6px",fontSize:11,color:"#fff",fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>🏢 {superAdminEcoleNom}</p>}
+              <button
+                onClick={onExitEcole}
+                title="Retour Super Admin"
+                style={{display:"flex",alignItems:"center",gap:6,background:"rgba(255,255,255,0.1)",border:"none",color:"#fff",cursor:"pointer",fontSize:12,padding:"6px 8px",borderRadius:6,width:"100%"}}>
+                <span>↩️</span>{sideOpen&&" Retour Super Admin"}
+              </button>
+            </div>
+          )}
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
             <div style={{width:36,height:36,borderRadius:"50%",background:roleColor[session.role],color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:13,flexShrink:0}}>
               {session.prenom?.[0]}{session.nom?.[0]}

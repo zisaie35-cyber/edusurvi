@@ -1,7 +1,7 @@
 // app/api/codes/envoyer-email/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { requireSession } from '@/lib/auth'
+import { requireSession, resolveEcoleId } from '@/lib/auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,6 +12,7 @@ const supabase = createClient(
 export async function POST(request: NextRequest) {
   try {
     const session = await requireSession(request, ['admin', 'super_admin'])
+    const ecoleId = resolveEcoleId(session, request)
 
     const { id } = await request.json()
     if (!id) return NextResponse.json({ error: 'ID requis' }, { status: 400 })
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
       .eq('id', id)
       .single()
 
-    if (fetchError || !codeParent || codeParent.ecole_id !== session.ecoleId) {
+    if (fetchError || !codeParent || codeParent.ecole_id !== ecoleId) {
       return NextResponse.json({ error: 'Code introuvable' }, { status: 404 })
     }
     if (!codeParent.parent_email) {

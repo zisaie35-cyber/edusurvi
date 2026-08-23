@@ -46,6 +46,18 @@ export async function getSession(request: NextRequest): Promise<SessionPayload |
   }
 }
 
+// Résout l'école sur laquelle porte la requête. Le super administrateur n'est
+// rattaché à aucune école : il désigne celle qu'il gère via l'en-tête
+// X-Ecole-Id (posé automatiquement par authFetch quand il est "entré" dans
+// une école — voir components/SuperAdminApp.tsx et app/dashboard/page.tsx).
+// Pour tous les autres rôles, l'école est simplement celle de leur session.
+export function resolveEcoleId(session: SessionPayload, request: NextRequest): string | null {
+  if (session.role === 'super_admin') {
+    return request.headers.get('x-ecole-id') || null
+  }
+  return session.ecoleId
+}
+
 // Exige une session valide dont le rôle est dans `roles` (si fourni).
 // Lève une erreur avec un statut HTTP à porter dans la réponse par l'appelant.
 export async function requireSession(request: NextRequest, roles?: Role[]): Promise<SessionPayload> {

@@ -1,7 +1,7 @@
 // app/api/points/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { requireSession } from '@/lib/auth'
+import { requireSession, resolveEcoleId } from '@/lib/auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,8 +23,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const session = await requireSession(request)
-    if (!session.ecoleId) {
-      return NextResponse.json({ error: 'Compte non rattaché à une école' }, { status: 403 })
+    const ecoleId = resolveEcoleId(session, request)
+    if (!ecoleId) {
+      return NextResponse.json({ error: 'Compte non rattaché à une école (sélectionnez une école)' }, { status: 403 })
     }
 
     const estAdmin = session.role === 'admin' || session.role === 'super_admin'
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
       const { data, error } = await supabase
         .from('points_config')
         .select('*')
-        .eq('ecole_id', session.ecoleId)
+        .eq('ecole_id', ecoleId)
         .single()
       if (error) throw error
       return NextResponse.json({ success: true, data })
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
         .from('points_transactions')
         .select('*')
         .eq('user_id', userId)
-        .eq('ecole_id', session.ecoleId)
+        .eq('ecole_id', ecoleId)
         .eq('annee_scolaire', annee)
         .order('created_at', { ascending: false })
         .limit(50)
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest) {
         .from('points_transactions')
         .select('points')
         .eq('user_id', userId)
-        .eq('ecole_id', session.ecoleId)
+        .eq('ecole_id', ecoleId)
         .eq('annee_scolaire', annee)
       if (error) throw error
       const total = (data || []).reduce((s: number, t: any) => s + t.points, 0)
@@ -73,7 +74,7 @@ export async function GET(request: NextRequest) {
         .from('points_retraits')
         .select('points, statut')
         .eq('user_id', userId)
-        .eq('ecole_id', session.ecoleId)
+        .eq('ecole_id', ecoleId)
         .in('statut', ['valide_ecole', 'valide_central', 'paye'])
       const retires = (retraits || []).reduce((s: number, r: any) => s + r.points, 0)
 
@@ -85,7 +86,7 @@ export async function GET(request: NextRequest) {
       const { data, error } = await supabase
         .from('points_transactions')
         .select('user_id, user_nom, user_prenom, user_role, points')
-        .eq('ecole_id', session.ecoleId)
+        .eq('ecole_id', ecoleId)
         .eq('annee_scolaire', annee)
       if (error) throw error
 
@@ -111,7 +112,7 @@ export async function GET(request: NextRequest) {
     if (type === 'retraits') {
       if (!estAdmin) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
       const statut = searchParams.get('statut')
-      let query = supabase.from('points_retraits').select('*').eq('ecole_id', session.ecoleId).order('created_at', { ascending: false })
+      let query = supabase.from('points_retraits').select('*').eq('ecole_id', ecoleId).order('created_at', { ascending: false })
       if (statut) query = query.eq('statut', statut)
       const { data, error } = await query
       if (error) throw error
@@ -124,7 +125,7 @@ export async function GET(request: NextRequest) {
         .from('points_retraits')
         .select('*')
         .eq('user_id', userId)
-        .eq('ecole_id', session.ecoleId)
+        .eq('ecole_id', ecoleId)
         .order('created_at', { ascending: false })
       if (error) throw error
       return NextResponse.json({ success: true, data })
@@ -141,8 +142,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await requireSession(request)
-    if (!session.ecoleId) {
-      return NextResponse.json({ error: 'Compte non rattaché à une école' }, { status: 403 })
+    const ecoleId = resolveEcoleId(session, request)
+    if (!ecoleId) {
+      return NextResponse.json({ error: 'Compte non rattaché à une école (sélectionnez une école)' }, { status: 403 })
     }
 
     const body = await request.json()
@@ -162,7 +164,7 @@ export async function POST(request: NextRequest) {
         user_nom: userNom,
         user_prenom: userPrenom,
         user_role: userRole,
-        ecole_id: session.ecoleId,
+        ecole_id: ecoleId,
         action,
         description,
         points,
@@ -183,8 +185,9 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const session = await requireSession(request, ['admin', 'super_admin'])
-    if (!session.ecoleId) {
-      return NextResponse.json({ error: 'Compte non rattaché à une école' }, { status: 403 })
+    const ecoleId = resolveEcoleId(session, request)
+    if (!ecoleId) {
+      return NextResponse.json({ error: 'Compte non rattaché à une école (sélectionnez une école)' }, { status: 403 })
     }
 
     const body = await request.json()
@@ -192,7 +195,7 @@ export async function PATCH(request: NextRequest) {
     const { data, error } = await supabase
       .from('points_config')
       .update({ ...body, updated_at: new Date().toISOString() })
-      .eq('ecole_id', session.ecoleId)
+      .eq('ecole_id', ecoleId)
       .select()
       .single()
 
