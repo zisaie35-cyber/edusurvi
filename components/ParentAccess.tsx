@@ -271,38 +271,48 @@ export function AdminCodes() {
     }
   }
 
-  // Simuler envoi SMS
+  // Envoi SMS réel (Twilio, via /api/codes/envoyer-sms)
   const envoyerSMS = async (c: CodeParent) => {
     if (!c.parent_tel) return toast2('Aucun numéro de téléphone', 'error')
     setSending('sms-' + c.id)
-    setTimeout(async () => {
-      await fetch('/api/codes', {
-        method: 'PATCH',
+    try {
+      const res = await fetch('/api/codes/envoyer-sms', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: c.id, smsSent: true }),
+        body: JSON.stringify({ id: c.id }),
       })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Échec de l\'envoi')
       await chargerCodes()
       if (selected?.id === c.id) setSelected(prev => prev ? { ...prev, sms_sent: true } : null)
-      setSending(null)
       toast2(`SMS envoyé au +226 ${c.parent_tel} ✓`)
-    }, 1500)
+    } catch (e: any) {
+      toast2(e.message || 'Erreur lors de l\'envoi du SMS', 'error')
+    } finally {
+      setSending(null)
+    }
   }
 
-  // Simuler envoi Email
+  // Envoi Email réel (Resend, via /api/codes/envoyer-email)
   const envoyerEmail = async (c: CodeParent) => {
     if (!c.parent_email) return toast2('Aucun email renseigné', 'error')
     setSending('email-' + c.id)
-    setTimeout(async () => {
-      await fetch('/api/codes', {
-        method: 'PATCH',
+    try {
+      const res = await fetch('/api/codes/envoyer-email', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: c.id, emailSent: true }),
+        body: JSON.stringify({ id: c.id }),
       })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Échec de l\'envoi')
       await chargerCodes()
       if (selected?.id === c.id) setSelected(prev => prev ? { ...prev, email_sent: true } : null)
-      setSending(null)
       toast2(`Email envoyé à ${c.parent_email} ✓`)
-    }, 1500)
+    } catch (e: any) {
+      toast2(e.message || 'Erreur lors de l\'envoi de l\'email', 'error')
+    } finally {
+      setSending(null)
+    }
   }
 
   const statutCode = (c: CodeParent) => {
