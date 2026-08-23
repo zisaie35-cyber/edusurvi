@@ -1,19 +1,19 @@
 // app/api/codes/envoyer-sms/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import twilio from 'twilio'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-function formatTelBurkinabe(tel: string): string {
-  if (tel.startsWith('+')) return tel
-  return `+226${tel.replace(/\D/g, '')}`
+// Brevo attend un numéro international SANS le "+" (ex: 22670000000)
+function formatTelBrevo(tel: string): string {
+  const digits = tel.replace(/\D/g, '')
+  return digits.startsWith('226') ? digits : `226${digits}`
 }
 
-// ── POST /api/codes/envoyer-sms — envoie le code parent par SMS (Twilio) ──────
+// ── POST /api/codes/envoyer-sms — envoie le code parent par SMS (Brevo) ───────
 export async function POST(request: NextRequest) {
   try {
     const { id } = await request.json()
@@ -32,14 +32,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Aucun numéro de téléphone renseigné' }, { status: 400 })
     }
 
-    const client = twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!)
-    const to = formatTelBurkinabe(codeParent.parent_tel)
-
-    await client.messages.create({
-      from: process.env.TWILIO_FROM_NUMBER!,
-      to,
-      body: `EduSuivi : votre code d'accès parent pour ${codeParent.eleve_prenom} ${codeParent.eleve_nom} est ${codeParent.code}. Valable jusqu'au ${codeParent.date_expiration}.`,
+    const res = await fetch('https://api.brevo.com/v3/transactionalSMS/sms', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'api-key': process.env.BREVO_API_KEY!,
+      },
+      body: JSON.stringify({
+        sender: process.env.BREVO_SMS_SENDER || 'EduSuivi',
+        recipient: formatTelBrevo(codeParent.parent_tel),
+        content: `EduSuivi : votre code d'accès parent pour ${codeParent.eleve_prenom} ${codeParent.eleve_nom} est ${codeParent.code}. Valable jusqu'au ${codeParent.date_expiration}.`,
+        type: 'transactional',
+      }),
     })
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.message || `Échec de l'envoi (Brevo ${res.status})`)
+    }
 
     const { data, error } = await supabase
       .from('codes_parents')
