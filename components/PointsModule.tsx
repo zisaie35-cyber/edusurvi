@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { authFetch } from '@/lib/apiClient'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Config {
@@ -166,11 +167,11 @@ export function PointsDashboard({ session }: { session: any }) {
     setLoading(true)
     try {
       const [cfgRes, soldeRes, txRes, retRes, clsRes] = await Promise.all([
-        fetch('/api/points?type=config'),
-        fetch(`/api/points?type=solde&userId=${session.id}`),
-        fetch(`/api/points?type=transactions&userId=${session.id}`),
-        fetch(`/api/points?type=mes_retraits&userId=${session.id}`),
-        fetch('/api/points?type=classement'),
+        authFetch('/api/points?type=config'),
+        authFetch(`/api/points?type=solde&userId=${session.id}`),
+        authFetch(`/api/points?type=transactions&userId=${session.id}`),
+        authFetch(`/api/points?type=mes_retraits&userId=${session.id}`),
+        authFetch('/api/points?type=classement'),
       ])
       const [cfg, sol, tx, ret, cls] = await Promise.all([cfgRes.json(), soldeRes.json(), txRes.json(), retRes.json(), clsRes.json()])
       if (cfg.success) setConfig(cfg.data)
@@ -197,7 +198,7 @@ export function PointsDashboard({ session }: { session: any }) {
     if (!formRetrait.telephone) return toast2('Numéro de téléphone requis', 'error')
     setSaving(true)
     try {
-      const res = await fetch('/api/points/retraits', {
+      const res = await authFetch('/api/points/retraits', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -479,9 +480,9 @@ export function AdminPoints() {
     setLoading(true)
     try {
       const [cfgRes, retRes, clsRes] = await Promise.all([
-        fetch('/api/points?type=config'),
-        fetch('/api/points?type=retraits'),
-        fetch('/api/points?type=classement'),
+        authFetch('/api/points?type=config'),
+        authFetch('/api/points?type=retraits'),
+        authFetch('/api/points?type=classement'),
       ])
       const [cfg, ret, cls] = await Promise.all([cfgRes.json(), retRes.json(), clsRes.json()])
       if (cfg.success) { setConfig(cfg.data); setEditConfig(cfg.data) }
@@ -495,7 +496,7 @@ export function AdminPoints() {
 
   const action = async (id: string, act: string, motif?: string) => {
     try {
-      const res = await fetch('/api/points/retraits', {
+      const res = await authFetch('/api/points/retraits', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, action: act, motif }),
@@ -512,7 +513,7 @@ export function AdminPoints() {
     if (!editConfig) return
     setSavingConfig(true)
     try {
-      const res = await fetch('/api/points', {
+      const res = await authFetch('/api/points', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editConfig),

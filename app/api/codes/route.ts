@@ -1,6 +1,7 @@
 // app/api/codes/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireSession } from '@/lib/auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -24,25 +25,36 @@ const VALIDITES: Record<string, number> = {
   annee: 365,
 }
 
-// ── GET /api/codes — lister tous les codes (admin) ────────────────────────────
+// ── GET /api/codes — lister les codes de l'école de l'admin connecté ──────────
 export async function GET(request: NextRequest) {
   try {
+    const session = await requireSession(request, ['admin', 'super_admin'])
+    if (!session.ecoleId) {
+      return NextResponse.json({ error: 'Compte non rattaché à une école' }, { status: 403 })
+    }
+
     const { data, error } = await supabase
       .from('codes_parents')
       .select('*')
+      .eq('ecole_id', session.ecoleId)
       .order('date_creation', { ascending: false })
 
     if (error) throw error
 
     return NextResponse.json({ success: true, data })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 })
   }
 }
 
 // ── POST /api/codes — créer un code (admin) ───────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
+    const session = await requireSession(request, ['admin', 'super_admin'])
+    if (!session.ecoleId) {
+      return NextResponse.json({ error: 'Compte non rattaché à une école' }, { status: 403 })
+    }
+
     const body = await request.json()
     const {
       eleveId, eleveNom, elevePrenom, eleveMatricule, eleveClasse,
@@ -94,6 +106,8 @@ export async function POST(request: NextRequest) {
         actif: true,
         sms_sent: false,
         email_sent: false,
+        ecole_id: session.ecoleId,
+        statut_paiement: 'confirme',
       })
       .select()
       .single()
@@ -102,15 +116,29 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data }, { status: 201 })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 })
   }
 }
 
 // ── PATCH /api/codes — activer/désactiver un code, confirmer/rejeter un paiement ──
 export async function PATCH(request: NextRequest) {
   try {
+    const session = await requireSession(request, ['admin', 'super_admin'])
+    if (!session.ecoleId) {
+      return NextResponse.json({ error: 'Compte non rattaché à une école' }, { status: 403 })
+    }
+
     const body = await request.json()
     const { id, actif, smsSent, emailSent, dateExpiration, confirmerPaiement, rejeterPaiement, motifRejet } = body
+
+    const { data: cible, error: fetchCibleError } = await supabase
+      .from('codes_parents')
+      .select('ecole_id, validite')
+      .eq('id', id)
+      .single()
+    if (fetchCibleError || !cible || cible.ecole_id !== session.ecoleId) {
+      return NextResponse.json({ error: 'Code introuvable' }, { status: 404 })
+    }
 
     const updates: any = {}
     if (actif !== undefined) updates.actif = actif
@@ -119,15 +147,7 @@ export async function PATCH(request: NextRequest) {
     if (dateExpiration !== undefined) updates.date_expiration = dateExpiration
 
     if (confirmerPaiement) {
-      const { data: existing, error: fetchError } = await supabase
-        .from('codes_parents')
-        .select('validite')
-        .eq('id', id)
-        .single()
-      if (fetchError || !existing) {
-        return NextResponse.json({ error: 'Code introuvable' }, { status: 404 })
-      }
-      const jours = VALIDITES[existing.validite]
+      const jours = VALIDITES[cible.validite]
       updates.actif = true
       updates.statut_paiement = 'confirme'
       updates.date_expiration = addDays(jours || 30)
@@ -152,16 +172,30 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true, data })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 })
   }
 }
 
 // ── DELETE /api/codes — supprimer un code ─────────────────────────────────────
 export async function DELETE(request: NextRequest) {
   try {
+    const session = await requireSession(request, ['admin', 'super_admin'])
+    if (!session.ecoleId) {
+      return NextResponse.json({ error: 'Compte non rattaché à une école' }, { status: 403 })
+    }
+
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'ID requis' }, { status: 400 })
+
+    const { data: cible } = await supabase
+      .from('codes_parents')
+      .select('ecole_id')
+      .eq('id', id)
+      .single()
+    if (!cible || cible.ecole_id !== session.ecoleId) {
+      return NextResponse.json({ error: 'Code introuvable' }, { status: 404 })
+    }
 
     const { error } = await supabase
       .from('codes_parents')
@@ -172,6 +206,6 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 })
   }
 }

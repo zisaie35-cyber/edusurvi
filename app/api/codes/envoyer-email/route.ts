@@ -1,6 +1,7 @@
 // app/api/codes/envoyer-email/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireSession } from '@/lib/auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,6 +11,8 @@ const supabase = createClient(
 // ── POST /api/codes/envoyer-email — envoie le code parent par email (Brevo) ───
 export async function POST(request: NextRequest) {
   try {
+    const session = await requireSession(request, ['admin', 'super_admin'])
+
     const { id } = await request.json()
     if (!id) return NextResponse.json({ error: 'ID requis' }, { status: 400 })
 
@@ -19,7 +22,7 @@ export async function POST(request: NextRequest) {
       .eq('id', id)
       .single()
 
-    if (fetchError || !codeParent) {
+    if (fetchError || !codeParent || codeParent.ecole_id !== session.ecoleId) {
       return NextResponse.json({ error: 'Code introuvable' }, { status: 404 })
     }
     if (!codeParent.parent_email) {
@@ -66,6 +69,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 })
   }
 }

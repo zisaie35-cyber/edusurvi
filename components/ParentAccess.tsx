@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { authFetch } from '@/lib/apiClient'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface CodeParent {
@@ -152,7 +153,7 @@ export function AdminCodes() {
   // Charger les codes depuis l'API
   const chargerCodes = async () => {
     try {
-      const res = await fetch('/api/codes')
+      const res = await authFetch('/api/codes')
       const data = await res.json()
       if (data.success) setCodes(data.data || [])
     } catch {
@@ -195,7 +196,7 @@ export function AdminCodes() {
 
     setSaving(true)
     try {
-      const res = await fetch('/api/codes', {
+      const res = await authFetch('/api/codes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -232,7 +233,7 @@ export function AdminCodes() {
       onOui: async () => {
         setConfirm(null)
         try {
-          const res = await fetch('/api/codes', {
+          const res = await authFetch('/api/codes', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id: c.id, actif: !c.actif }),
@@ -255,7 +256,7 @@ export function AdminCodes() {
       onOui: async () => {
         setConfirm(null)
         try {
-          const res = await fetch(`/api/codes?id=${c.id}`, { method: 'DELETE' })
+          const res = await authFetch(`/api/codes?id=${c.id}`, { method: 'DELETE' })
           if (!res.ok) throw new Error()
           await chargerCodes()
           if (selected?.id === c.id) { setSelected(null); setModal(null) }
@@ -271,7 +272,7 @@ export function AdminCodes() {
   const renouveler = async (c: CodeParent) => {
     const v = VALIDITES[c.validite]
     try {
-      const res = await fetch('/api/codes', {
+      const res = await authFetch('/api/codes', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: c.id, actif: true, dateExpiration: addDays(v?.jours || 30) }),
@@ -291,7 +292,7 @@ export function AdminCodes() {
       onOui: async () => {
         setConfirm(null)
         try {
-          const res = await fetch('/api/codes', {
+          const res = await authFetch('/api/codes', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id: c.id, confirmerPaiement: true }),
@@ -313,7 +314,7 @@ export function AdminCodes() {
     const motif = window.prompt(`Motif du rejet du paiement pour ${c.eleve_prenom} ${c.eleve_nom} ?`)
     if (!motif) return
     try {
-      const res = await fetch('/api/codes', {
+      const res = await authFetch('/api/codes', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: c.id, rejeterPaiement: true, motifRejet: motif }),
@@ -333,7 +334,7 @@ export function AdminCodes() {
     if (!c.parent_tel) return toast2('Aucun numéro de téléphone', 'error')
     setSending('sms-' + c.id)
     try {
-      const res = await fetch('/api/codes/envoyer-sms', {
+      const res = await authFetch('/api/codes/envoyer-sms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: c.id }),
@@ -355,7 +356,7 @@ export function AdminCodes() {
     if (!c.parent_email) return toast2('Aucun email renseigné', 'error')
     setSending('email-' + c.id)
     try {
-      const res = await fetch('/api/codes/envoyer-email', {
+      const res = await authFetch('/api/codes/envoyer-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: c.id }),

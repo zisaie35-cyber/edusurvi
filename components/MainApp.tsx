@@ -363,7 +363,7 @@ function SanctionsPageComp({ session, data, update, showToast }: any) {
 }
 
 function EleveHome({ session, data }: any) {
-  const eleve = data.eleves.find((e:any)=>e.id===session.eleveId)
+  const eleve = data.eleves.find((e:any)=>e.matricule===session.eleveMatricule)
   if (!eleve) return <p>Profil introuvable</p>
   const notes = data.notes.filter((n:any)=>n.eleveId===eleve.id)
   const absences = data.absences.filter((a:any)=>a.eleveId===eleve.id)
@@ -492,7 +492,7 @@ export default function MainApp({ initialUser }: { initialUser: any }) {
       </div>
     )
     if (page === "notes") {
-      const eleve = data.eleves.find((e:any)=>e.id===session.eleveId)
+      const eleve = data.eleves.find((e:any)=>e.matricule===session.eleveMatricule)
       if (!eleve) return <p>Élève introuvable</p>
       const notes = data.notes.filter((n:any)=>n.eleveId===eleve.id)
       return (

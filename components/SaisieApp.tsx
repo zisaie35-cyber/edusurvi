@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { authFetch } from '@/lib/apiClient'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Note {
@@ -691,9 +692,9 @@ export default function SaisieApp() {
     const user = getUser()
     if (!user?.id) return
     try {
-      const cfg = await fetch('/api/points?type=config').then(r => r.json())
+      const cfg = await authFetch('/api/points?type=config').then(r => r.json())
       const pts = cfg?.data?.[ptsKey] || defaultPts
-      await fetch('/api/points', {
+      await authFetch('/api/points', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -718,12 +719,12 @@ export default function SaisieApp() {
     const user = getUser()
     if (user?.id) {
       try {
-        const cfg = await fetch('/api/points?type=config').then(r => r.json())
+        const cfg = await authFetch('/api/points?type=config').then(r => r.json())
         const ptsParNote = cfg?.data?.pts_note || 10
         const ptsTotal = newNotes.length * ptsParNote
 
         // Points pour les notes saisies
-        await fetch('/api/points', {
+        await authFetch('/api/points', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -746,7 +747,7 @@ export default function SaisieApp() {
         )
         if (toutesNotees) {
           const ptsBonus = cfg?.data?.pts_classe_complete || 100
-          await fetch('/api/points', {
+          await authFetch('/api/points', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

@@ -3,7 +3,7 @@
 // Le paiement n'est PAS vérifié automatiquement (pas d'API marchande Orange
 // Money) : la demande est créée inactive, en attente de confirmation manuelle
 // par l'administration. Une alerte email + SMS est envoyée immédiatement à
-// l'administration pour accélérer la vérification.
+// l'école concernée pour accélérer la vérification.
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
@@ -12,8 +12,8 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const ADMIN_ALERT_EMAIL = process.env.ADMIN_ALERT_EMAIL || 'zisaie35@yahoo.fr'
-const ADMIN_ALERT_TEL = process.env.ADMIN_ALERT_TEL || '76260715'
+const ADMIN_ALERT_EMAIL_DEFAUT = process.env.ADMIN_ALERT_EMAIL || 'zisaie35@yahoo.fr'
+const ADMIN_ALERT_TEL_DEFAUT = process.env.ADMIN_ALERT_TEL || '76260715'
 
 const VALIDITES: Record<string, { jours: number; prix: number }> = {
   semaine: { jours: 7, prix: 500 },
@@ -38,7 +38,10 @@ function formatTelBrevo(tel: string): string {
 }
 
 // Alerte admin best-effort : ne doit jamais faire échouer la demande du parent.
-async function alerterAdmin(params: { eleveNom: string; elevePrenom: string; eleveMatricule: string; eleveClasse: string; montant: number; parentTel: string }) {
+async function alerterAdmin(params: {
+  eleveNom: string; elevePrenom: string; eleveMatricule: string; eleveClasse: string
+  montant: number; parentTel: string; emailAlerte: string; telAlerte: string
+}) {
   const texte = `EduSuivi : nouvelle demande de code parent — ${params.elevePrenom} ${params.eleveNom} (matricule ${params.eleveMatricule}, ${params.eleveClasse}). Montant annoncé : ${params.montant} FCFA. Tél. payeur : ${params.parentTel}. Vérifiez Orange Money et confirmez dans l'admin.`
 
   if (process.env.BREVO_API_KEY) {
@@ -48,7 +51,7 @@ async function alerterAdmin(params: { eleveNom: string; elevePrenom: string; ele
         headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'api-key': process.env.BREVO_API_KEY },
         body: JSON.stringify({
           sender: { name: process.env.BREVO_FROM_NAME || 'EduSuivi', email: process.env.BREVO_FROM_EMAIL },
-          to: [{ email: ADMIN_ALERT_EMAIL }],
+          to: [{ email: params.emailAlerte }],
           subject: `Nouvelle demande de code parent — ${params.elevePrenom} ${params.eleveNom}`,
           htmlContent: `<p>${texte}</p>`,
         }),
@@ -61,7 +64,7 @@ async function alerterAdmin(params: { eleveNom: string; elevePrenom: string; ele
         headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'api-key': process.env.BREVO_API_KEY },
         body: JSON.stringify({
           sender: process.env.BREVO_SMS_SENDER || 'EduSuivi',
-          recipient: formatTelBrevo(ADMIN_ALERT_TEL),
+          recipient: formatTelBrevo(params.telAlerte),
           content: texte,
           type: 'transactional',
         }),
@@ -74,8 +77,11 @@ async function alerterAdmin(params: { eleveNom: string; elevePrenom: string; ele
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { eleveMatricule, eleveNom, elevePrenom, eleveClasse, parentTel, parentEmail, validite } = body
+    const { ecoleId, eleveMatricule, eleveNom, elevePrenom, eleveClasse, parentTel, parentEmail, validite } = body
 
+    if (!ecoleId) {
+      return NextResponse.json({ error: 'École requise' }, { status: 400 })
+    }
     if (!eleveMatricule || !eleveNom || !elevePrenom || !eleveClasse) {
       return NextResponse.json({ error: 'Matricule, classe, nom et prénom de l\'élève requis' }, { status: 400 })
     }
@@ -86,6 +92,16 @@ export async function POST(request: NextRequest) {
     const tarif = VALIDITES[validite]
     if (!tarif) {
       return NextResponse.json({ error: 'Durée de validité invalide' }, { status: 400 })
+    }
+
+    const { data: ecole } = await supabase
+      .from('ecoles')
+      .select('id, email_alerte, telephone_alerte')
+      .eq('id', ecoleId)
+      .eq('actif', true)
+      .single()
+    if (!ecole) {
+      return NextResponse.json({ error: 'École introuvable ou inactive' }, { status: 404 })
     }
 
     // Générer un code unique (restera inactif tant que le paiement n'est pas confirmé)
@@ -124,6 +140,7 @@ export async function POST(request: NextRequest) {
         operateur_paiement: 'orange_money',
         telephone_expediteur: parentTel,
         montant: tarif.prix,
+        ecole_id: ecole.id,
       })
       .select()
       .single()
@@ -133,6 +150,8 @@ export async function POST(request: NextRequest) {
     await alerterAdmin({
       eleveNom, elevePrenom, eleveMatricule, eleveClasse,
       montant: tarif.prix, parentTel,
+      emailAlerte: ecole.email_alerte || ADMIN_ALERT_EMAIL_DEFAUT,
+      telAlerte: ecole.telephone_alerte || ADMIN_ALERT_TEL_DEFAUT,
     })
 
     return NextResponse.json({ success: true, data: { id: data.id, montant: tarif.prix } }, { status: 201 })

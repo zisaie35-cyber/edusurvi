@@ -5,7 +5,7 @@
 
 import { useMemo, useState } from 'react'
 
-type Role = 'admin' | 'professeur' | 'surveillant' | 'eleve' | 'parent'
+type Role = 'super_admin' | 'admin' | 'professeur' | 'surveillant' | 'eleve' | 'parent'
 
 type Section = {
   id: string
@@ -18,6 +18,7 @@ type Section = {
 }
 
 const ROLE_LABEL: Record<Role, string> = {
+  super_admin: 'Super administrateur',
   admin: 'Administrateur',
   professeur: 'Professeur',
   surveillant: 'Surveillant',
@@ -26,6 +27,7 @@ const ROLE_LABEL: Record<Role, string> = {
 }
 
 const ROLE_COLOR: Record<Role, string> = {
+  super_admin: '#1a1a2e',
   admin: '#7c3aed',
   professeur: '#2563eb',
   surveillant: '#d97706',
@@ -38,15 +40,29 @@ const SECTIONS: Section[] = [
     id: 'connexion',
     icon: '🔐',
     titre: 'Se connecter',
-    roles: ['admin', 'professeur', 'surveillant', 'eleve', 'parent'],
-    intro: "Chaque profil dispose de son propre accès à l'application.",
+    roles: ['super_admin', 'admin', 'professeur', 'surveillant', 'eleve', 'parent'],
+    intro: "Chaque profil dispose de son propre accès à l'application, rattaché à une école précise (sauf le super administrateur).",
     etapes: [
       "Sur la page de connexion, saisissez votre adresse email et votre mot de passe, puis cliquez sur « Se connecter ».",
-      "Vous êtes redirigé automatiquement vers le tableau de bord correspondant à votre rôle (administrateur, professeur, surveillant ou élève).",
+      "Vous êtes redirigé automatiquement vers l'espace correspondant à votre rôle : super administration (toutes les écoles), ou tableau de bord de votre école (administrateur, professeur, surveillant, élève).",
       "Des boutons de comptes de démonstration (Admin / Professeur / Surveillant / Élève) permettent de pré-remplir les identifiants pour tester l'application.",
       "Si vous êtes parent, n'utilisez pas ce formulaire : cliquez sur « Espace Parents » pour entrer votre code d'accès à 6 chiffres (voir la section « Espace Parents »).",
     ],
-    astuce: "Votre session reste ouverte tant que vous ne cliquez pas sur « Déconnexion » dans le menu latéral.",
+    astuce: "Votre session reste ouverte tant que vous ne cliquez pas sur « Déconnexion ».",
+  },
+  {
+    id: 'super_admin',
+    icon: '🏢',
+    titre: 'Super administration (multi-écoles)',
+    roles: ['super_admin'],
+    intro: "EduSuivi gère plusieurs écoles indépendantes. Le super administrateur crée et supervise les écoles ; chaque école a ensuite son propre administrateur, qui ne voit que les données de son établissement.",
+    etapes: [
+      "Cliquez sur « + Nouvelle école » : renseignez le nom, la ville, un téléphone/email de contact, et éventuellement un email et un téléphone d'alerte dédiés (utilisés pour les notifications de demandes de code parent — sinon les valeurs par défaut de la plateforme sont utilisées).",
+      "Pour chaque école, cliquez « + Admin » pour créer son premier compte administrateur (prénom, nom, email, mot de passe d'au moins 8 caractères). Cet administrateur ne voit et ne gère que les données de son école.",
+      "Activez/désactivez une école ou un administrateur à tout moment avec les boutons dédiés — une école désactivée reste dans le système mais ses utilisateurs ne peuvent plus s'y connecter à de nouveaux services liés (codes parents notamment).",
+      "Un barème de points par défaut est créé automatiquement pour chaque nouvelle école.",
+    ],
+    astuce: "Le compte super administrateur n'est pas rattaché à une école : il ne peut pas saisir de notes, gérer des classes, etc. — son rôle est uniquement la supervision multi-écoles.",
   },
   {
     id: 'tableau_de_bord',
@@ -116,10 +132,10 @@ const SECTIONS: Section[] = [
     icon: '🏛',
     titre: 'Classes & professeurs',
     roles: ['admin'],
-    intro: "Module réservé à l'administrateur pour organiser les classes et affecter les professeurs.",
+    intro: "Module réservé à l'administrateur pour organiser les classes et affecter les professeurs. Les classes et élèves sont enregistrés dans votre école uniquement — invisibles pour les autres écoles de la plateforme.",
     etapes: [
       "La vue globale présente une carte par classe (effectif d'élèves et de professeurs). Cliquez sur « + Nouvelle classe » pour en créer une (nom, niveau).",
-      "Le tableau des professeurs liste les matières enseignées et les classes assignées ; « + Ajouter un professeur » permet de créer un profil (nom, email, matières via cases à cocher, classes).",
+      "Le tableau des professeurs liste les matières enseignées et les classes assignées ; « + Ajouter un professeur » permet de créer un profil (nom, email, matières via cases à cocher, classes) — ce volet reste pour l'instant une gestion locale, en attendant sa bascule complète vers les comptes réels.",
       "Cliquez sur « Voir le détail » d'une classe pour gérer ses élèves (ajout, modification, suppression, changement de classe) et ses professeurs (affectation/retrait), ainsi que la « couverture des matières » (matières sans professeur assigné).",
     ],
   },
@@ -185,7 +201,7 @@ const SECTIONS: Section[] = [
       "Cliquez sur « Accéder au suivi » : la fiche de votre enfant s'affiche (nom, classe, matricule, date d'expiration de l'accès).",
       "Trois onglets sont disponibles : « Notes » (moyenne générale et détail par matière), « Devoirs » (prochaines échéances) et « Absences » (compteurs et historique justifié/non justifié).",
       "Cliquez sur « Déconnexion » pour quitter l'espace et ressaisir un code plus tard.",
-      "Pas encore de code ? Cliquez sur « 🟠 Obtenir un code avec Orange Money » : renseignez le matricule, la classe, le nom et prénom de l'élève, votre numéro de téléphone (celui utilisé pour payer), choisissez une durée puis envoyez le montant affiché au 76 26 07 15 via Orange Money. L'établissement est alerté aussitôt, vérifie le paiement, puis active le code et vous l'envoie par SMS/email.",
+      "Pas encore de code ? Cliquez sur « 🟠 Obtenir un code avec Orange Money » : sélectionnez d'abord l'école de votre enfant (EduSuivi regroupe plusieurs écoles), renseignez le matricule, la classe, le nom et prénom de l'élève, votre numéro de téléphone (celui utilisé pour payer), choisissez une durée puis envoyez le montant affiché au 76 26 07 15 via Orange Money. L'école concernée est alertée aussitôt, vérifie le paiement, puis active le code et vous l'envoie par SMS/email.",
     ],
     astuce: "Si vous n'avez pas de code, contactez l'administration de l'établissement ou utilisez « Obtenir un code avec Orange Money » directement depuis le portail.",
   },

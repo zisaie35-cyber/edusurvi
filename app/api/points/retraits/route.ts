@@ -1,20 +1,29 @@
 // app/api/points/retraits/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireSession } from '@/lib/auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// ── POST /api/points/retraits — Demander un retrait ───────────────────────────
+// ── POST /api/points/retraits — Demander un retrait (pour soi-même) ───────────
 export async function POST(request: NextRequest) {
   try {
+    const session = await requireSession(request)
+    if (!session.ecoleId) {
+      return NextResponse.json({ error: 'Compte non rattaché à une école' }, { status: 403 })
+    }
+
     const body = await request.json()
     const { userId, userNom, userPrenom, userRole, points, montantFcfa, operateur, telephone } = body
 
     if (!userId || !points || !operateur || !telephone) {
       return NextResponse.json({ error: 'Champs requis manquants' }, { status: 400 })
+    }
+    if (session.sub !== userId) {
+      return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
     }
 
     // Vérifier que l'utilisateur a assez de points disponibles
@@ -22,12 +31,14 @@ export async function POST(request: NextRequest) {
       .from('points_transactions')
       .select('points')
       .eq('user_id', userId)
+      .eq('ecole_id', session.ecoleId)
     const total = (transactions || []).reduce((s: number, t: any) => s + t.points, 0)
 
     const { data: retraits } = await supabase
       .from('points_retraits')
       .select('points, statut')
       .eq('user_id', userId)
+      .eq('ecole_id', session.ecoleId)
       .in('statut', ['en_attente', 'valide_ecole', 'valide_central', 'paye'])
     const retires = (retraits || []).reduce((s: number, r: any) => s + r.points, 0)
 
@@ -46,6 +57,7 @@ export async function POST(request: NextRequest) {
         user_nom: userNom,
         user_prenom: userPrenom,
         user_role: userRole,
+        ecole_id: session.ecoleId,
         points,
         montant_fcfa: montantFcfa,
         operateur,
@@ -58,16 +70,30 @@ export async function POST(request: NextRequest) {
     if (error) throw error
     return NextResponse.json({ success: true, data }, { status: 201 })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 })
   }
 }
 
-// ── PATCH /api/points/retraits — Valider/Refuser un retrait ───────────────────
+// ── PATCH /api/points/retraits — Valider/Refuser un retrait (admin de l'école) ──
 export async function PATCH(request: NextRequest) {
   try {
+    const session = await requireSession(request, ['admin', 'super_admin'])
+    if (!session.ecoleId) {
+      return NextResponse.json({ error: 'Compte non rattaché à une école' }, { status: 403 })
+    }
+
     const body = await request.json()
     const { id, action, motif } = body
     // action: 'valider_ecole' | 'valider_central' | 'payer' | 'refuser'
+
+    const { data: existing, error: fetchError } = await supabase
+      .from('points_retraits')
+      .select('ecole_id')
+      .eq('id', id)
+      .single()
+    if (fetchError || !existing || existing.ecole_id !== session.ecoleId) {
+      return NextResponse.json({ error: 'Retrait introuvable' }, { status: 404 })
+    }
 
     const updates: any = {}
     if (action === 'valider_ecole') {
@@ -97,6 +123,6 @@ export async function PATCH(request: NextRequest) {
     if (error) throw error
     return NextResponse.json({ success: true, data })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 })
   }
 }

@@ -1,66 +1,12 @@
-
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+import bcrypt from 'bcryptjs'
+import { signSession } from '@/lib/auth'
 
-// Comptes de démonstration intégrés directement
-// (pas besoin de base de données pour commencer)
-const DEMO_USERS = [
-  {
-    id: 1,
-    nom: "Diallo",
-    prenom: "Mamadou",
-    email: "admin@ecole.bf",
-    password: "admin123",
-    role: "admin",
-    actif: true,
-  },
-  {
-    id: 2,
-    nom: "Ouédraogo",
-    prenom: "Safi",
-    email: "prof1@ecole.bf",
-    password: "prof123",
-    role: "professeur",
-    actif: true,
-  },
-  {
-    id: 3,
-    nom: "Sawadogo",
-    prenom: "Ismaël",
-    email: "prof2@ecole.bf",
-    password: "prof123",
-    role: "professeur",
-    actif: true,
-  },
-  {
-    id: 4,
-    nom: "Kaboré",
-    prenom: "Adèle",
-    email: "surv@ecole.bf",
-    password: "surv123",
-    role: "surveillant",
-    actif: true,
-  },
-  {
-    id: 5,
-    nom: "Traoré",
-    prenom: "Aïcha",
-    email: "eleve1@ecole.bf",
-    password: "eleve123",
-    role: "eleve",
-    actif: true,
-    eleveId: 1,
-  },
-  {
-    id: 6,
-    nom: "Compaoré",
-    prenom: "Théo",
-    email: "eleve2@ecole.bf",
-    password: "eleve123",
-    role: "eleve",
-    actif: true,
-    eleveId: 2,
-  },
-]
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 export async function POST(request: NextRequest) {
   try {
@@ -68,37 +14,63 @@ export async function POST(request: NextRequest) {
     const { email, password } = body
 
     if (!email || !password) {
-      return NextResponse.json(
-        { error: 'Email et mot de passe requis' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Email et mot de passe requis' }, { status: 400 })
     }
 
-    // Chercher l'utilisateur
-    const user = DEMO_USERS.find(
-      u => u.email === email && u.password === password && u.actif
-    )
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .eq('actif', true)
+      .single()
 
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Email ou mot de passe incorrect' },
-        { status: 401 }
-      )
+    if (error || !user) {
+      return NextResponse.json({ error: 'Email ou mot de passe incorrect' }, { status: 401 })
     }
 
-    // Retourner les infos utilisateur (sans le mot de passe)
-    const { password: _, ...userWithoutPassword } = user
+    const valide = await bcrypt.compare(password, user.password)
+    if (!valide) {
+      return NextResponse.json({ error: 'Email ou mot de passe incorrect' }, { status: 401 })
+    }
+
+    // Pour un élève, résoudre son identifiant élève réel (table eleves).
+    // eleveMatricule sert de clé stable pour l'affichage démo côté MainApp,
+    // qui n'est pas encore branché sur les vraies tables élèves/classes.
+    let eleveId: string | undefined
+    let eleveMatricule: string | undefined
+    if (user.role === 'eleve') {
+      const { data: eleve } = await supabase
+        .from('eleves')
+        .select('id, matricule')
+        .eq('user_id', user.id)
+        .single()
+      eleveId = eleve?.id
+      eleveMatricule = eleve?.matricule
+    }
+
+    const accessToken = await signSession({
+      sub: user.id,
+      nom: user.nom,
+      prenom: user.prenom,
+      email: user.email,
+      role: user.role,
+      ecoleId: user.ecole_id,
+    })
 
     return NextResponse.json({
       success: true,
-      accessToken: `demo-token-${user.id}-${Date.now()}`,
-      user: userWithoutPassword,
+      accessToken,
+      user: {
+        id: user.id,
+        nom: user.nom,
+        prenom: user.prenom,
+        email: user.email,
+        role: user.role,
+        ecoleId: user.ecole_id,
+        ...(eleveId ? { eleveId, eleveMatricule } : {}),
+      },
     })
-
   } catch (error) {
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

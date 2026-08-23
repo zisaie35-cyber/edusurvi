@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 
 const ManuelUtilisation = dynamic(() => import('@/components/ManuelUtilisation'), { ssr: false })
@@ -353,18 +353,29 @@ const DUREES: Record<string, { label: string; prix: number }> = {
 
 function ObtenirCodeOverlay({ onClose }: { onClose: () => void }) {
   const [form, setForm] = useState({
-    eleveMatricule: '', eleveNom: '', elevePrenom: '', eleveClasse: '',
+    ecoleId: '', eleveMatricule: '', eleveNom: '', elevePrenom: '', eleveClasse: '',
     parentEmail: '', parentTel: '', validite: 'trimestre',
   })
+  const [ecoles, setEcoles] = useState<{ id: string; nom: string; ville?: string }[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [envoye, setEnvoye] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/ecoles')
+      .then(r => r.json())
+      .then(d => { if (d.success) setEcoles(d.data) })
+      .catch(() => {})
+  }, [])
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
   const tarif = DUREES[form.validite]
 
   const soumettre = async () => {
     setError('')
+    if (!form.ecoleId) {
+      return setError('Sélectionnez l\'école de l\'enfant')
+    }
     if (!form.eleveMatricule || !form.eleveClasse || !form.eleveNom || !form.elevePrenom) {
       return setError('Matricule, classe, nom et prénom de l\'élève requis')
     }
@@ -426,6 +437,14 @@ function ObtenirCodeOverlay({ onClose }: { onClose: () => void }) {
                 <li>Votre code d'accès vous est envoyé par SMS/email dès que le paiement est confirmé.</li>
               </ol>
             </div>
+
+            <p style={labelStyle}>École de l'enfant</p>
+            <select style={{ ...inputStyle, marginBottom: 14 }} value={form.ecoleId} onChange={e => set('ecoleId', e.target.value)}>
+              <option value="">— Sélectionner —</option>
+              {ecoles.map(e => (
+                <option key={e.id} value={e.id}>{e.nom}{e.ville ? ` — ${e.ville}` : ''}</option>
+              ))}
+            </select>
 
             <p style={labelStyle}>Durée d'accès souhaitée</p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>

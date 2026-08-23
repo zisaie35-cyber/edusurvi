@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { authFetch } from '@/lib/apiClient'
 
-interface Classe { id:number; nom:string; niveau:string }
+interface Classe { id:string; nom:string; niveau:string }
+interface Eleve { id:string; nom:string; prenom:string; classeId:string|null; matricule:string; dateNaissance:string; email:string }
+interface Professeur { id:number; nom:string; prenom:string; email:string; matieres:number[]; classes:string[] }
 interface Matiere { id:number; nom:string; coef:number; couleur:string }
-interface Professeur { id:number; nom:string; prenom:string; email:string; matieres:number[]; classes:number[] }
-interface Eleve { id:number; nom:string; prenom:string; classe:number; matricule:string; dateNaissance:string; email:string }
 
 const MATIERES_FIXED:Matiere[] = [
   {id:1,nom:"Mathématiques",coef:3,couleur:"#2563eb"},
@@ -28,8 +29,11 @@ function useLS<T>(key:string, init:T):[T,(v:T)=>void] {
   return [s,set]
 }
 
-function Av({nom,prenom,id,size=36}:{nom:string,prenom:string,id:number,size?:number}){
-  return <div style={{width:size,height:size,borderRadius:"50%",background:AV[id%AV.length],color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:Math.round(size*.33),flexShrink:0}}>{prenom?.[0]}{nom?.[0]}</div>
+function hashStr(s:string){let h=0;for(let i=0;i<s.length;i++){h=(h*31+s.charCodeAt(i))|0}return Math.abs(h)}
+
+function Av({nom,prenom,id,size=36}:{nom:string,prenom:string,id:string|number,size?:number}){
+  const idx = typeof id === 'number' ? id : hashStr(id)
+  return <div style={{width:size,height:size,borderRadius:"50%",background:AV[idx%AV.length],color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:Math.round(size*.33),flexShrink:0}}>{prenom?.[0]}{nom?.[0]}</div>
 }
 
 function Bdg({label,color}:{label:string,color:string}){
@@ -84,29 +88,15 @@ const TD:React.CSSProperties={padding:"11px 14px",verticalAlign:"middle"}
 const nid=(arr:{id:number}[])=>Math.max(0,...arr.map(x=>x.id))+1
 
 export default function AdminClasses(){
-  const [classes,setClasses]=useLS<Classe[]>('classes',[
-    {id:1,nom:"3ème A",niveau:"3ème"},
-    {id:2,nom:"4ème B",niveau:"4ème"},
-    {id:3,nom:"5ème A",niveau:"5ème"},
-  ])
-  const [eleves,setEleves]=useLS<Eleve[]>('eleves',[
-    {id:1,nom:"Traoré",prenom:"Aïcha",classe:1,matricule:"2024-001",dateNaissance:"2009-03-14",email:"eleve1@ecole.bf"},
-    {id:2,nom:"Compaoré",prenom:"Théo",classe:1,matricule:"2024-002",dateNaissance:"2008-11-22",email:"eleve2@ecole.bf"},
-    {id:3,nom:"Zongo",prenom:"Fatima",classe:2,matricule:"2024-003",dateNaissance:"2009-06-05",email:"eleve3@ecole.bf"},
-    {id:4,nom:"Ouédraogo",prenom:"Brice",classe:1,matricule:"2024-004",dateNaissance:"2009-01-18",email:"eleve4@ecole.bf"},
-    {id:5,nom:"Sawadogo",prenom:"Mariam",classe:2,matricule:"2024-005",dateNaissance:"2008-09-30",email:"eleve5@ecole.bf"},
-    {id:6,nom:"Kaboré",prenom:"Luc",classe:3,matricule:"2024-006",dateNaissance:"2010-02-11",email:"eleve6@ecole.bf"},
-    {id:7,nom:"Diallo",prenom:"Salimata",classe:1,matricule:"2024-007",dateNaissance:"2009-07-25",email:"eleve7@ecole.bf"},
-    {id:8,nom:"Nikiema",prenom:"Joël",classe:2,matricule:"2024-008",dateNaissance:"2008-12-03",email:"eleve8@ecole.bf"},
-    {id:9,nom:"Tapsoba",prenom:"Reine",classe:3,matricule:"2024-009",dateNaissance:"2010-04-17",email:"eleve9@ecole.bf"},
-    {id:10,nom:"Ouattara",prenom:"Issa",classe:1,matricule:"2024-010",dateNaissance:"2009-08-09",email:"eleve10@ecole.bf"},
-  ])
+  const [classes,setClasses]=useState<Classe[]>([])
+  const [eleves,setEleves]=useState<Eleve[]>([])
+  const [loading,setLoading]=useState(true)
   const [profs,setProfs]=useLS<Professeur[]>('profs',[
-    {id:1,nom:"Ouédraogo",prenom:"Safi",email:"prof1@ecole.bf",matieres:[1,2],classes:[1,2]},
-    {id:2,nom:"Sawadogo",prenom:"Ismaël",email:"prof2@ecole.bf",matieres:[3,4],classes:[1,3]},
+    {id:1,nom:"Ouédraogo",prenom:"Safi",email:"prof1@ecole.bf",matieres:[1,2],classes:[]},
+    {id:2,nom:"Sawadogo",prenom:"Ismaël",email:"prof2@ecole.bf",matieres:[3,4],classes:[]},
   ])
 
-  const [sel,setSel]=useState<number|null>(null)
+  const [sel,setSel]=useState<string|null>(null)
   const [view,setView]=useState<"eleves"|"profs">("eleves")
   const [search,setSearch]=useState("")
   const [toast,setToast]=useState<any>(null)
@@ -117,48 +107,98 @@ export default function AdminClasses(){
   const [fC,setFC]=useState<Partial<Classe>>({})
   const [fE,setFE]=useState<Partial<Eleve>>({})
   const [fP,setFP]=useState<Partial<Professeur>>({})
+  const [saving,setSaving]=useState(false)
 
   const toast2=(msg:string,type="success")=>{setToast({msg,type});setTimeout(()=>setToast(null),3000)}
   const askDel=(msg:string,fn:()=>void)=>setConfirm({message:msg,onOui:()=>{fn();setConfirm(null)}})
 
-  // CRUD Classes
-  const svClasse=()=>{
-    if(!fC.nom||!fC.niveau)return toast2("Nom et niveau requis","error")
-    if(mClasse==="add") setClasses([...classes,{id:nid(classes),nom:fC.nom,niveau:fC.niveau}])
-    else setClasses(classes.map(c=>c.id===fC.id?{...c,...fC}as Classe:c))
-    toast2(mClasse==="add"?"Classe ajoutée ✓":"Classe modifiée ✓")
-    setMClasse(null);setFC({})
+  const charger=async()=>{
+    setLoading(true)
+    try{
+      const [rc,re]=await Promise.all([authFetch('/api/classes'),authFetch('/api/eleves')])
+      const [dc,de]=await Promise.all([rc.json(),re.json()])
+      if(dc.success)setClasses(dc.data||[])
+      if(de.success)setEleves(de.data||[])
+    }catch{
+      toast2("Erreur de chargement","error")
+    }
+    setLoading(false)
   }
-  const delClasse=(id:number)=>{
-    const nb=eleves.filter(e=>e.classe===id).length
-    askDel(`Supprimer cette classe ?\n${nb>0?`⚠️ ${nb} élève(s) seront sans classe.`:""}`,()=>{
-      setClasses(classes.filter(c=>c.id!==id))
-      if(sel===id)setSel(null)
-      toast2("Classe supprimée","error")
+  useEffect(()=>{charger()},[])
+
+  // CRUD Classes
+  const svClasse=async()=>{
+    if(!fC.nom||!fC.niveau)return toast2("Nom et niveau requis","error")
+    setSaving(true)
+    try{
+      const res=await authFetch('/api/classes',{
+        method: mClasse==="add"?'POST':'PATCH',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(mClasse==="add"?{nom:fC.nom,niveau:fC.niveau}:{id:fC.id,nom:fC.nom,niveau:fC.niveau}),
+      })
+      const data=await res.json()
+      if(!res.ok)throw new Error(data.error)
+      await charger()
+      toast2(mClasse==="add"?"Classe ajoutée ✓":"Classe modifiée ✓")
+      setMClasse(null);setFC({})
+    }catch(e:any){
+      toast2(e.message||"Erreur lors de l'enregistrement","error")
+    }
+    setSaving(false)
+  }
+  const delClasse=(id:string)=>{
+    const nb=eleves.filter(e=>e.classeId===id).length
+    askDel(`Supprimer cette classe ?\n${nb>0?`⚠️ ${nb} élève(s) seront sans classe.`:""}`,async()=>{
+      try{
+        const res=await authFetch(`/api/classes?id=${id}`,{method:'DELETE'})
+        if(!res.ok)throw new Error()
+        await charger()
+        if(sel===id)setSel(null)
+        toast2("Classe supprimée","error")
+      }catch{
+        toast2("Erreur lors de la suppression","error")
+      }
     })
   }
 
   // CRUD Élèves
-  const svEleve=()=>{
-    if(!fE.nom||!fE.prenom)return toast2("Nom et prénom requis","error")
-    if(mEleve==="add"){
-      setEleves([...eleves,{id:nid(eleves),nom:fE.nom!,prenom:fE.prenom!,classe:fE.classe||sel||classes[0]?.id,matricule:fE.matricule||`2024-${String(nid(eleves)).padStart(3,"0")}`,dateNaissance:fE.dateNaissance||"",email:fE.email||""}])
-      toast2(`${fE.prenom} ${fE.nom} ajouté(e) ✓`)
-    }else{
-      setEleves(eleves.map(e=>e.id===fE.id?{...e,...fE}as Eleve:e))
-      toast2("Élève modifié(e) ✓")
+  const svEleve=async()=>{
+    if(!fE.nom||!fE.prenom||!fE.matricule)return toast2("Nom, prénom et matricule requis","error")
+    setSaving(true)
+    try{
+      const payload:any = mEleve==="add"
+        ? {nom:fE.nom,prenom:fE.prenom,matricule:fE.matricule,dateNaissance:fE.dateNaissance,email:fE.email,classeId:fE.classeId||sel}
+        : {id:fE.id,nom:fE.nom,prenom:fE.prenom,matricule:fE.matricule,dateNaissance:fE.dateNaissance,email:fE.email,classeId:fE.classeId}
+      const res=await authFetch('/api/eleves',{
+        method: mEleve==="add"?'POST':'PATCH',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(payload),
+      })
+      const data=await res.json()
+      if(!res.ok)throw new Error(data.error)
+      await charger()
+      toast2(mEleve==="add"?`${fE.prenom} ${fE.nom} ajouté(e) ✓`:"Élève modifié(e) ✓")
+      setMEleve(null);setFE({})
+    }catch(e:any){
+      toast2(e.message||"Erreur lors de l'enregistrement","error")
     }
-    setMEleve(null);setFE({})
+    setSaving(false)
   }
-  const delEleve=(id:number)=>{
+  const delEleve=(id:string)=>{
     const el=eleves.find(e=>e.id===id)
-    askDel(`Supprimer ${el?.prenom} ${el?.nom} définitivement ?`,()=>{
-      setEleves(eleves.filter(e=>e.id!==id))
-      toast2("Élève supprimé(e)","error")
+    askDel(`Supprimer ${el?.prenom} ${el?.nom} définitivement ?`,async()=>{
+      try{
+        const res=await authFetch(`/api/eleves?id=${id}`,{method:'DELETE'})
+        if(!res.ok)throw new Error()
+        await charger()
+        toast2("Élève supprimé(e)","error")
+      }catch{
+        toast2("Erreur lors de la suppression","error")
+      }
     })
   }
 
-  // CRUD Profs
+  // CRUD Profs (démo locale, pas encore branchée au backend réel)
   const svProf=()=>{
     if(!fP.nom||!fP.prenom)return toast2("Nom et prénom requis","error")
     if(mProf==="add"){
@@ -193,7 +233,7 @@ export default function AdminClasses(){
     </div>
   )
 
-  const ClassesCheck=({val,onChange}:{val:number[],onChange:(v:number[])=>void})=>(
+  const ClassesCheck=({val,onChange}:{val:string[],onChange:(v:string[])=>void})=>(
     <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
       {classes.map(cl=>{
         const on=val.includes(cl.id)
@@ -208,8 +248,10 @@ export default function AdminClasses(){
   )
 
   const cl=classes.find(c=>c.id===sel)
-  const eC=eleves.filter(e=>e.classe===sel).filter(e=>`${e.nom} ${e.prenom} ${e.matricule}`.toLowerCase().includes(search.toLowerCase()))
+  const eC=eleves.filter(e=>e.classeId===sel).filter(e=>`${e.nom} ${e.prenom} ${e.matricule}`.toLowerCase().includes(search.toLowerCase()))
   const pC=profs.filter(p=>p.classes.includes(sel!))
+
+  if(loading) return <p style={{textAlign:"center",color:"#aaa",padding:60}}>⏳ Chargement...</p>
 
   // ── VUE GLOBALE ─────────────────────────────────────────────────────────────
   if(!sel) return(
@@ -228,7 +270,7 @@ export default function AdminClasses(){
       {/* Cartes classes */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(270px,1fr))",gap:16,marginBottom:28}}>
         {classes.map(c=>{
-          const nb=eleves.filter(e=>e.classe===c.id).length
+          const nb=eleves.filter(e=>e.classeId===c.id).length
           const np=profs.filter(p=>p.classes.includes(c.id)).length
           return(
             <div key={c.id} style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 1px 4px rgba(0,0,0,.06)",border:"0.5px solid #e5e7eb"}}>
@@ -253,7 +295,7 @@ export default function AdminClasses(){
                 </div>
               </div>
               <div style={{display:"flex",gap:4,marginBottom:12}}>
-                {eleves.filter(e=>e.classe===c.id).slice(0,7).map(e=><Av key={e.id} nom={e.nom} prenom={e.prenom} id={e.id} size={26}/>)}
+                {eleves.filter(e=>e.classeId===c.id).slice(0,7).map(e=><Av key={e.id} nom={e.nom} prenom={e.prenom} id={e.id} size={26}/>)}
                 {nb>7&&<div style={{width:26,height:26,borderRadius:"50%",background:"#f3f4f6",color:"#6b7280",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:600}}>+{nb-7}</div>}
               </div>
               <button onClick={()=>{setSel(c.id);setView("eleves")}} style={{width:"100%",padding:"8px",background:"#f8f9ff",border:"1px solid #e0e7ff",borderRadius:8,color:"#2563eb",fontSize:13,fontWeight:500,cursor:"pointer"}}>
@@ -307,7 +349,7 @@ export default function AdminClasses(){
           </F>
           <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}}>
             <button style={BS} onClick={()=>setMClasse(null)}>Annuler</button>
-            <button style={BP} onClick={svClasse}>Enregistrer</button>
+            <button style={BP} onClick={svClasse} disabled={saving}>{saving?"⏳...":"Enregistrer"}</button>
           </div>
         </Modal>
       )}
@@ -350,7 +392,7 @@ export default function AdminClasses(){
           <p style={{margin:0,opacity:.8,fontSize:13}}>Niveau {cl?.niveau} · Année 2024–2025</p>
         </div>
         <div style={{display:"flex",gap:20}}>
-          {[{v:eleves.filter(e=>e.classe===sel).length,l:"Élèves"},{v:pC.length,l:"Profs"},{v:MATIERES_FIXED.length,l:"Matières"}].map(s=>(
+          {[{v:eleves.filter(e=>e.classeId===sel).length,l:"Élèves"},{v:pC.length,l:"Profs"},{v:MATIERES_FIXED.length,l:"Matières"}].map(s=>(
             <div key={s.l} style={{textAlign:"center"}}>
               <p style={{fontSize:26,fontWeight:700,margin:0}}>{s.v}</p>
               <p style={{fontSize:12,opacity:.8,margin:0}}>{s.l}</p>
@@ -365,7 +407,7 @@ export default function AdminClasses(){
 
       {/* Tabs */}
       <div style={{display:"flex",gap:8,marginBottom:20}}>
-        {[{id:"eleves",l:`👤 Élèves (${eleves.filter(e=>e.classe===sel).length})`},{id:"profs",l:`👩‍🏫 Professeurs (${pC.length})`}].map(t=>(
+        {[{id:"eleves",l:`👤 Élèves (${eleves.filter(e=>e.classeId===sel).length})`},{id:"profs",l:`👩‍🏫 Professeurs (${pC.length})`}].map(t=>(
           <button key={t.id} onClick={()=>setView(t.id as any)} style={{padding:"9px 20px",borderRadius:8,fontSize:13,cursor:"pointer",background:view===t.id?"#1a1a2e":"#fff",color:view===t.id?"#fff":"#666",border:view===t.id?"none":"1px solid #e5e7eb",fontWeight:view===t.id?600:400}}>{t.l}</button>
         ))}
       </div>
@@ -375,7 +417,7 @@ export default function AdminClasses(){
         <div style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 1px 4px rgba(0,0,0,.06)",border:"0.5px solid #e5e7eb"}}>
           <div style={{display:"flex",gap:12,marginBottom:16}}>
             <input style={{flex:1,padding:"8px 14px",border:"1px solid #e5e7eb",borderRadius:8,fontSize:13,outline:"none"}} placeholder="Rechercher..." value={search} onChange={e=>setSearch(e.target.value)}/>
-            <button style={BP} onClick={()=>{setFE({classe:sel!,matricule:`2024-${String(nid(eleves)).padStart(3,"0")}`});setMEleve("add")}}>+ Ajouter un élève</button>
+            <button style={BP} onClick={()=>{setFE({classeId:sel,matricule:`2024-${String(eleves.length+1).padStart(3,"0")}`});setMEleve("add")}}>+ Ajouter un élève</button>
           </div>
           {eC.length===0
             ?<p style={{textAlign:"center",color:"#aaa",padding:32}}>Aucun élève trouvé</p>
@@ -467,7 +509,7 @@ export default function AdminClasses(){
           <F label="Niveau *"><select style={IN} value={fC.niveau||"3ème"} onChange={e=>setFC({...fC,niveau:e.target.value})}>{NIVEAUX.map(n=><option key={n}>{n}</option>)}</select></F>
           <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}}>
             <button style={BS} onClick={()=>setMClasse(null)}>Annuler</button>
-            <button style={BP} onClick={svClasse}>Enregistrer</button>
+            <button style={BP} onClick={svClasse} disabled={saving}>{saving?"⏳...":"Enregistrer"}</button>
           </div>
         </Modal>
       )}
@@ -476,18 +518,18 @@ export default function AdminClasses(){
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
             <F label="Prénom *"><input style={IN} value={fE.prenom||""} onChange={e=>setFE({...fE,prenom:e.target.value})}/></F>
             <F label="Nom *"><input style={IN} value={fE.nom||""} onChange={e=>setFE({...fE,nom:e.target.value})}/></F>
-            <F label="Matricule"><input style={IN} value={fE.matricule||""} onChange={e=>setFE({...fE,matricule:e.target.value})}/></F>
+            <F label="Matricule *"><input style={IN} value={fE.matricule||""} onChange={e=>setFE({...fE,matricule:e.target.value})}/></F>
             <F label="Date de naissance"><input style={IN} type="date" value={fE.dateNaissance||""} onChange={e=>setFE({...fE,dateNaissance:e.target.value})}/></F>
           </div>
-          <F label="Email"><input style={IN} type="email" value={fE.email||""} onChange={e=>setFE({...fE,email:e.target.value})}/></F>
+          <F label="Email (optionnel)"><input style={IN} type="email" value={fE.email||""} onChange={e=>setFE({...fE,email:e.target.value})}/></F>
           <F label="Classe">
-            <select style={IN} value={fE.classe||sel||""} onChange={e=>setFE({...fE,classe:parseInt(e.target.value)})}>
+            <select style={IN} value={fE.classeId||sel||""} onChange={e=>setFE({...fE,classeId:e.target.value})}>
               {classes.map(c=><option key={c.id} value={c.id}>{c.nom}</option>)}
             </select>
           </F>
           <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}}>
             <button style={BS} onClick={()=>setMEleve(null)}>Annuler</button>
-            <button style={BP} onClick={svEleve}>Enregistrer</button>
+            <button style={BP} onClick={svEleve} disabled={saving}>{saving?"⏳...":"Enregistrer"}</button>
           </div>
         </Modal>
       )}
@@ -509,4 +551,3 @@ export default function AdminClasses(){
     </div>
   )
 }
-
