@@ -41,21 +41,12 @@
       "purpose": "any maskable"
     }
   ],
-  "screenshots": [
-    {
-      "src": "/screenshots/login.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "Connexion EduSuivi"
-    }
-  ],
   "categories": ["education", "productivity"],
   "shortcuts": [
     {
-      "name": "Programme des devoirs",
-      "url": "/dashboard?page=devoirs",
-      "description": "Voir le programme des devoirs"
+      "name": "Tableau de bord",
+      "url": "/dashboard",
+      "description": "Ouvrir mon tableau de bord"
     },
     {
       "name": "Espace parents",
