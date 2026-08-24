@@ -16,6 +16,10 @@ export default function ParentsPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [eleve, setEleve] = useState<any>(null)
+  const [notes, setNotes] = useState<any[]>([])
+  const [absences, setAbsences] = useState<any[]>([])
+  const [retards, setRetards] = useState<any[]>([])
+  const [devoirs, setDevoirs] = useState<any[]>([])
   const [tab, setTab] = useState<'notes' | 'devoirs' | 'absences'>('notes')
   const [showHelp, setShowHelp] = useState(false)
   const [showObtenir, setShowObtenir] = useState(false)
@@ -55,6 +59,10 @@ export default function ParentsPage() {
       }
 
       setEleve(data.eleve)
+      setNotes(data.notes || [])
+      setAbsences(data.absences || [])
+      setRetards(data.retards || [])
+      setDevoirs(data.devoirs || [])
     } catch {
       setError('Erreur de connexion. Vérifiez votre connexion internet.')
     }
@@ -90,7 +98,7 @@ export default function ParentsPage() {
               ❓ Aide
             </button>
             <button
-              onClick={() => { setEleve(null); setDigits(['', '', '', '', '', '']) }}
+              onClick={() => { setEleve(null); setNotes([]); setAbsences([]); setRetards([]); setDevoirs([]); setDigits(['', '', '', '', '', '']) }}
               style={{ padding: '7px 14px', background: 'rgba(255,255,255,.15)', border: '1px solid rgba(255,255,255,.3)', borderRadius: 8, color: '#fff', fontSize: 12, cursor: 'pointer' }}
             >
               Déconnexion
@@ -113,9 +121,9 @@ export default function ParentsPage() {
         </div>
 
         <div style={{ padding: '20px 24px', maxWidth: 800, margin: '0 auto' }}>
-          {tab === 'notes' && <NotesView eleve={eleve} />}
-          {tab === 'devoirs' && <DevoirsView eleve={eleve} />}
-          {tab === 'absences' && <AbsencesView />}
+          {tab === 'notes' && <NotesView notes={notes} />}
+          {tab === 'devoirs' && <DevoirsView eleve={eleve} devoirs={devoirs} />}
+          {tab === 'absences' && <AbsencesView absences={absences} retards={retards} />}
         </div>
       </div>
     )
@@ -205,21 +213,14 @@ export default function ParentsPage() {
 }
 
 // ─── Notes ────────────────────────────────────────────────────────────────────
-function NotesView({ eleve }: { eleve: any }) {
-  const MATIERES = [
-    { nom: 'Mathématiques', coef: 3, couleur: '#2563eb' },
-    { nom: 'Français',      coef: 3, couleur: '#7c3aed' },
-    { nom: 'SVT',           coef: 2, couleur: '#059669' },
-    { nom: 'Histoire-Géo',  coef: 2, couleur: '#d97706' },
-    { nom: 'Anglais',       coef: 2, couleur: '#0891b2' },
-  ]
-  const NOTES = [
-    { matiere: 'Mathématiques', valeur: 14, typeEval: 'Devoir 1', trimestre: 3 },
-    { matiere: 'Français',      valeur: 12, typeEval: 'Devoir 1', trimestre: 3 },
-    { matiere: 'SVT',           valeur: 16, typeEval: 'Devoir 1', trimestre: 3 },
-    { matiere: 'Anglais',       valeur: 13, typeEval: 'Devoir 1', trimestre: 3 },
-  ]
-  const moy = (NOTES.reduce((s, n) => s + n.valeur, 0) / NOTES.length).toFixed(1)
+function NotesView({ notes }: { notes: any[] }) {
+  if (!notes.length) {
+    return <p style={{ textAlign: 'center', color: '#aaa', padding: 40 }}>Aucune note enregistrée pour l'instant</p>
+  }
+
+  const moy = (notes.reduce((s, n) => s + n.valeur, 0) / notes.length).toFixed(1)
+  const trimestres = [...new Set(notes.map(n => n.trimestre))].sort()
+  const matieres = [...new Map(notes.map(n => [n.matiereNom, n])).values()]
 
   return (
     <div>
@@ -229,30 +230,29 @@ function NotesView({ eleve }: { eleve: any }) {
           <p style={{ fontSize: 11, color: '#888', margin: 0 }}>Moyenne générale</p>
         </div>
         <div style={{ background: '#f0fdf4', borderRadius: 12, padding: 12, textAlign: 'center' }}>
-          <p style={{ fontSize: 26, fontWeight: 700, color: '#059669', margin: 0 }}>{NOTES.length}</p>
+          <p style={{ fontSize: 26, fontWeight: 700, color: '#059669', margin: 0 }}>{notes.length}</p>
           <p style={{ fontSize: 11, color: '#888', margin: 0 }}>Notes</p>
         </div>
         <div style={{ background: '#fefce8', borderRadius: 12, padding: 12, textAlign: 'center' }}>
-          <p style={{ fontSize: 26, fontWeight: 700, color: '#d97706', margin: 0 }}>T3</p>
-          <p style={{ fontSize: 11, color: '#888', margin: 0 }}>Trimestre</p>
+          <p style={{ fontSize: 26, fontWeight: 700, color: '#d97706', margin: 0 }}>{trimestres.map(t => `T${t}`).join(', ') || '-'}</p>
+          <p style={{ fontSize: 11, color: '#888', margin: 0 }}>Trimestre{trimestres.length > 1 ? 's' : ''}</p>
         </div>
       </div>
-      {MATIERES.map(m => {
-        const notes = NOTES.filter(n => n.matiere === m.nom)
-        if (!notes.length) return null
-        const mMoy = (notes.reduce((s, n) => s + n.valeur, 0) / notes.length).toFixed(1)
+      {matieres.map(m => {
+        const notesMatiere = notes.filter(n => n.matiereNom === m.matiereNom)
+        const mMoy = (notesMatiere.reduce((s, n) => s + n.valeur, 0) / notesMatiere.length).toFixed(1)
         return (
-          <div key={m.nom} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 16px', marginBottom: 10 }}>
+          <div key={m.matiereNom} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 16px', marginBottom: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: m.couleur }} />
-                <strong style={{ fontSize: 14 }}>{m.nom}</strong>
-                <span style={{ fontSize: 11, color: '#aaa' }}>coeff.{m.coef}</span>
+                <strong style={{ fontSize: 14 }}>{m.matiereNom}</strong>
+                <span style={{ fontSize: 11, color: '#aaa' }}>coeff.{m.coefficient}</span>
               </div>
               <strong style={{ color: parseFloat(mMoy) >= 10 ? '#059669' : '#dc2626' }}>{mMoy}/20</strong>
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {notes.map((n, i) => (
+              {notesMatiere.map((n, i) => (
                 <div key={i} style={{ background: '#f8f9ff', borderRadius: 8, padding: '6px 12px', textAlign: 'center', minWidth: 70 }}>
                   <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: n.valeur >= 10 ? '#2563eb' : '#dc2626' }}>{n.valeur}</p>
                   <p style={{ margin: 0, fontSize: 10, color: '#888' }}>{n.typeEval}</p>
@@ -267,23 +267,29 @@ function NotesView({ eleve }: { eleve: any }) {
 }
 
 // ─── Devoirs ──────────────────────────────────────────────────────────────────
-function DevoirsView({ eleve }: { eleve: any }) {
-  const prochains = [
-    { date: '2025-05-07', matiere: 'Maths',    heure: '10h-12h' },
-    { date: '2025-05-09', matiere: 'Français', heure: '10h-12h' },
-    { date: '2025-05-14', matiere: 'IR',        heure: '10h-12h' },
-  ]
+function DevoirsView({ eleve, devoirs }: { eleve: any; devoirs: any[] }) {
+  if (!devoirs.length) {
+    return (
+      <div>
+        <p style={{ fontSize: 13, color: '#888', marginBottom: 14 }}>
+          Programme des devoirs — <strong>{eleve.classe}</strong>
+        </p>
+        <p style={{ textAlign: 'center', color: '#aaa', padding: 40 }}>Aucun devoir programmé pour l'instant</p>
+      </div>
+    )
+  }
+
   return (
     <div>
       <p style={{ fontSize: 13, color: '#888', marginBottom: 14 }}>
-        Prochains devoirs — <strong>{eleve.classe}</strong>
+        Programme des devoirs — <strong>{eleve.classe}</strong>
       </p>
-      {prochains.map((d, i) => {
+      {devoirs.map((d) => {
         const days = Math.ceil((new Date(d.date).getTime() - new Date().setHours(0, 0, 0, 0)) / 86400000)
         return (
-          <div key={i} style={{ background: '#fff', border: `1px solid ${days <= 3 ? '#fbbf24' : '#e5e7eb'}`, borderLeft: `4px solid ${days <= 3 ? '#f59e0b' : '#2563eb'}`, borderRadius: '0 12px 12px 0', padding: '12px 16px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ minWidth: 52, textAlign: 'center', background: days <= 3 ? '#fef3c7' : '#eff6ff', borderRadius: 8, padding: '6px 8px' }}>
-              <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: days <= 3 ? '#d97706' : '#2563eb' }}>
+          <div key={d.id} style={{ background: '#fff', border: `1px solid ${days >= 0 && days <= 3 ? '#fbbf24' : '#e5e7eb'}`, borderLeft: `4px solid ${days >= 0 && days <= 3 ? '#f59e0b' : '#2563eb'}`, borderRadius: '0 12px 12px 0', padding: '12px 16px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 14, opacity: days < 0 ? 0.6 : 1 }}>
+            <div style={{ minWidth: 52, textAlign: 'center', background: days >= 0 && days <= 3 ? '#fef3c7' : '#eff6ff', borderRadius: 8, padding: '6px 8px' }}>
+              <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: days >= 0 && days <= 3 ? '#d97706' : '#2563eb' }}>
                 {new Date(d.date).getDate()}
               </p>
               <p style={{ margin: 0, fontSize: 10, color: '#888' }}>
@@ -292,9 +298,13 @@ function DevoirsView({ eleve }: { eleve: any }) {
             </div>
             <div style={{ flex: 1 }}>
               <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>{d.matiere}</p>
-              <p style={{ margin: 0, fontSize: 12, color: '#888' }}>🕐 {d.heure}</p>
+              <p style={{ margin: 0, fontSize: 12, color: '#888' }}>
+                {d.heureDebut && d.heureFin ? `🕐 ${d.heureDebut}–${d.heureFin}` : ''}
+                {d.professeur ? ` · ${d.professeur}` : ''}
+              </p>
+              {d.note && <p style={{ margin: '2px 0 0', fontSize: 11, color: '#d97706', fontStyle: 'italic' }}>ℹ️ {d.note}</p>}
             </div>
-            {days <= 3 && days >= 0 && (
+            {days >= 0 && days <= 3 && (
               <span style={{ padding: '3px 10px', borderRadius: 99, background: '#fef2f2', color: '#dc2626', fontSize: 11, fontWeight: 600 }}>
                 Dans {days}j ⚠️
               </span>
@@ -307,35 +317,44 @@ function DevoirsView({ eleve }: { eleve: any }) {
 }
 
 // ─── Absences ─────────────────────────────────────────────────────────────────
-function AbsencesView() {
+function AbsencesView({ absences, retards }: { absences: any[]; retards: any[] }) {
+  const historique = [
+    ...absences.map(a => ({ ...a, sorte: 'absence' as const, date: a.dateDebut })),
+    ...retards.map(r => ({ ...r, sorte: 'retard' as const })),
+  ].sort((a, b) => b.date.localeCompare(a.date))
+
   return (
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
         <div style={{ background: '#fef2f2', borderRadius: 12, padding: 12, textAlign: 'center' }}>
-          <p style={{ fontSize: 26, fontWeight: 700, color: '#dc2626', margin: 0 }}>1</p>
+          <p style={{ fontSize: 26, fontWeight: 700, color: '#dc2626', margin: 0 }}>{absences.length}</p>
           <p style={{ fontSize: 11, color: '#888', margin: 0 }}>Absences</p>
         </div>
         <div style={{ background: '#fff7ed', borderRadius: 12, padding: 12, textAlign: 'center' }}>
-          <p style={{ fontSize: 26, fontWeight: 700, color: '#d97706', margin: 0 }}>2</p>
+          <p style={{ fontSize: 26, fontWeight: 700, color: '#d97706', margin: 0 }}>{retards.length}</p>
           <p style={{ fontSize: 11, color: '#888', margin: 0 }}>Retards</p>
         </div>
       </div>
       <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 16 }}>
         <p style={{ margin: '0 0 12px', fontWeight: 600, fontSize: 14 }}>Historique</p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid #f5f5f5' }}>
-          <span style={{ padding: '3px 10px', borderRadius: 99, fontSize: 11, background: '#fef2f2', color: '#dc2626', fontWeight: 600 }}>Absence</span>
-          <div>
-            <p style={{ margin: 0, fontSize: 13 }}>04–05 novembre 2024</p>
-            <p style={{ margin: 0, fontSize: 12, color: '#888' }}>Maladie · Justifiée</p>
+        {historique.length === 0 && <p style={{ textAlign: 'center', color: '#aaa', padding: 20 }}>Aucune absence ni retard enregistré</p>}
+        {historique.map((h, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: i < historique.length - 1 ? '1px solid #f5f5f5' : 'none' }}>
+            <span style={{ padding: '3px 10px', borderRadius: 99, fontSize: 11, background: h.sorte === 'absence' ? '#fef2f2' : '#fff7ed', color: h.sorte === 'absence' ? '#dc2626' : '#d97706', fontWeight: 600 }}>
+              {h.sorte === 'absence' ? 'Absence' : 'Retard'}
+            </span>
+            <div>
+              {h.sorte === 'absence' ? (
+                <p style={{ margin: 0, fontSize: 13 }}>{formatDate(h.dateDebut)}{h.dateFin && h.dateFin !== h.dateDebut ? ` → ${formatDate(h.dateFin)}` : ''}</p>
+              ) : (
+                <p style={{ margin: 0, fontSize: 13 }}>{formatDate(h.date)} · Arrivée {h.heureArrivee}</p>
+              )}
+              <p style={{ margin: 0, fontSize: 12, color: '#888' }}>
+                {h.motif ? `${h.motif} · ` : ''}{(h.sorte === 'absence' ? h.justifiee : h.justifie) ? 'Justifié(e)' : 'Non justifié(e)'}
+              </p>
+            </div>
           </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0' }}>
-          <span style={{ padding: '3px 10px', borderRadius: 99, fontSize: 11, background: '#fff7ed', color: '#d97706', fontWeight: 600 }}>Retard</span>
-          <div>
-            <p style={{ margin: 0, fontSize: 13 }}>08 octobre 2024</p>
-            <p style={{ margin: 0, fontSize: 12, color: '#888' }}>Arrivée 08h25 · Transport · Justifié</p>
-          </div>
-        </div>
+        ))}
       </div>
     </div>
   )
