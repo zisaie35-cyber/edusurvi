@@ -243,7 +243,7 @@ export function PointsDashboard({ session }: { session: any }) {
             <p style={{ margin: 0, fontSize: 14, opacity: .8 }}>≈ {valeurFcfa.toLocaleString()} FCFA</p>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginTop: 16 }}>
+        <div className="stat-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginTop: 16 }}>
           {[
             { label: 'Total gagné',   val: solde.total.toLocaleString() + ' pts',   color: 'rgba(255,255,255,.15)' },
             { label: 'Retiré',        val: solde.retires.toLocaleString() + ' pts',  color: 'rgba(255,255,255,.1)' },
@@ -546,7 +546,7 @@ export function AdminPoints() {
       </div>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
+      <div className="stat-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
         {[
           { label: 'En attente validation', val: stats.enAttente,                    color: '#d97706', icon: '⏳' },
           { label: 'Validés par les écoles', val: stats.valideEcole,                  color: '#2563eb', icon: '✅' },

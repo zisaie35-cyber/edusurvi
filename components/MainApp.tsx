@@ -437,7 +437,7 @@ function DisciplinePage() {
   return (
     <div>
       <PageTitle>Discipline</PageTitle>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:20}}>
+      <div className="stat-grid-3" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:20}}>
         <StatCard icon="⚠️" label="Sanctions" value={sanctions.length} color="#d97706"/>
         <StatCard icon="⏰" label="Retards" value={retards.length} color="#dc2626"/>
         <StatCard icon="📅" label="Absences" value={absences.length} color="#7c3aed"/>
@@ -613,6 +613,12 @@ export default function MainApp({ initialUser, superAdminEcoleNom, onExitEcole }
   const [session] = useState(initialUser)
   const [page, setPage] = useState("home")
   const [sideOpen, setSideOpen] = useState(true)
+
+  // Sidebar repliée par défaut sur petit écran (mobile / app Android) pour
+  // laisser la place au contenu — l'utilisateur peut toujours la déplier.
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 640) setSideOpen(false)
+  }, [])
   const [toast, setToast] = useState<any>(null)
 
   const showToast = (msg: string, type="success") => {
@@ -656,7 +662,7 @@ export default function MainApp({ initialUser, superAdminEcoleNom, onExitEcole }
       {toast && <Toast msg={toast.msg} type={toast.type}/>}
 
       {/* Sidebar */}
-      <aside style={{background:"#1a1a2e",display:"flex",flexDirection:"column",flexShrink:0,width:sideOpen?220:64,transition:"width 0.2s",overflow:"hidden"}}>
+      <aside className="app-sidebar" style={{background:"#1a1a2e",display:"flex",flexDirection:"column",flexShrink:0,width:sideOpen?220:64,transition:"width 0.2s",overflow:"hidden"}}>
         <div style={{padding:"20px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid rgba(255,255,255,0.08)"}}>
           {sideOpen && <span style={{color:"#fff",fontWeight:800,fontSize:16,whiteSpace:"nowrap"}}>🏫 EduSuivi</span>}
           <button style={{background:"none",border:"none",color:"rgba(255,255,255,0.5)",cursor:"pointer",fontSize:12,padding:"4px 6px"}} onClick={()=>setSideOpen(!sideOpen)}>
@@ -702,7 +708,7 @@ export default function MainApp({ initialUser, superAdminEcoleNom, onExitEcole }
       </aside>
 
       {/* Contenu */}
-      <main style={{flex:1,padding:"28px 32px",overflow:"auto",background:"#f4f6fb"}}>
+      <main className="app-main" style={{flex:1,padding:"28px 32px",overflow:"auto",background:"#f4f6fb",minWidth:0}}>
         {renderPage()}
       </main>
     </div>

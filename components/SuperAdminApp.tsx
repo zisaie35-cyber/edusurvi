@@ -223,7 +223,7 @@ export default function SuperAdminApp({ session, onEnterEcole }: { session: any;
         <button style={BP} onClick={() => setModalEcole(true)}>+ Nouvelle école</button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 20 }}>
+      <div className="stat-grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 20 }}>
         {[
           { label: 'Écoles', val: ecoles.length, color: '#2563eb', icon: '🏢' },
           { label: 'Écoles actives', val: ecoles.filter(e => e.actif).length, color: '#059669', icon: '✅' },

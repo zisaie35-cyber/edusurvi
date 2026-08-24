@@ -398,7 +398,7 @@ export function AdminCodes() {
       </div>
 
       {/* Stats */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:12, marginBottom:20 }}>
+      <div className="stat-grid-5" style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:12, marginBottom:20 }}>
         {[
           { label:'Total',              val:stats.total,            color:'#2563eb', icon:'🔑' },
           { label:'Paiements en attente', val:stats.paiementsAttente, color:'#d97706', icon:'💰' },

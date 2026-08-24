@@ -22,3 +22,25 @@ input:focus, select:focus, textarea:focus {
 @media print {
   .no-print { display: none !important; }
 }
+
+/* Empêche tout débordement horizontal de la page sur petit écran (mobile/app Android) */
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+/* Ajustements responsive pour l'app principale (sidebar + contenu) — voir MainApp.tsx */
+@media (max-width: 640px) {
+  .app-main {
+    padding: 16px !important;
+  }
+  .stat-grid-3,
+  .stat-grid-4,
+  .stat-grid-5 {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
+
+table {
+  max-width: 100%;
+}

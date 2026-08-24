@@ -434,13 +434,13 @@ export default function AdminClasses(){
       {/* Élèves */}
       {view==="eleves"&&(
         <div style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 1px 4px rgba(0,0,0,.06)",border:"0.5px solid #e5e7eb"}}>
-          <div style={{display:"flex",gap:12,marginBottom:16}}>
-            <input style={{flex:1,padding:"8px 14px",border:"1px solid #e5e7eb",borderRadius:8,fontSize:13,outline:"none"}} placeholder="Rechercher..." value={search} onChange={e=>setSearch(e.target.value)}/>
+          <div style={{display:"flex",gap:12,marginBottom:16,flexWrap:"wrap"}}>
+            <input style={{flex:1,minWidth:180,padding:"8px 14px",border:"1px solid #e5e7eb",borderRadius:8,fontSize:13,outline:"none"}} placeholder="Rechercher..." value={search} onChange={e=>setSearch(e.target.value)}/>
             <button style={BP} onClick={()=>{setFE({classeId:sel,matricule:`2024-${String(eleves.length+1).padStart(3,"0")}`});setMEleve("add")}}>+ Ajouter un élève</button>
           </div>
           {eC.length===0
             ?<p style={{textAlign:"center",color:"#aaa",padding:32}}>Aucun élève trouvé</p>
-            :<table style={{width:"100%",borderCollapse:"collapse",fontSize:14}}>
+            :<div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:14}}>
               <thead><tr style={{background:"#f8f9fc"}}>
                 <th style={TH}>#</th><th style={TH}>Élève</th><th style={TH}>Matricule</th><th style={TH}>Date naissance</th><th style={TH}>Actions</th>
               </tr></thead>
@@ -468,7 +468,7 @@ export default function AdminClasses(){
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           }
         </div>
       )}

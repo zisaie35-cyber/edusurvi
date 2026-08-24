@@ -223,7 +223,7 @@ function NotesView({ eleve }: { eleve: any }) {
 
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 16 }}>
+      <div className="stat-grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 16 }}>
         <div style={{ background: '#eff6ff', borderRadius: 12, padding: 12, textAlign: 'center' }}>
           <p style={{ fontSize: 26, fontWeight: 700, color: '#2563eb', margin: 0 }}>{moy}</p>
           <p style={{ fontSize: 11, color: '#888', margin: 0 }}>Moyenne générale</p>

@@ -150,7 +150,7 @@ function SaisieNotesForm({ classes, eleves, matieres, onSave }: {
   return (
     <div>
       {/* Filtres */}
-      <div style={{
+      <div className="stat-grid-4" style={{
         display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:20,
         background:"#f8f9ff", borderRadius:12, padding:16
       }}>
@@ -209,8 +209,8 @@ function SaisieNotesForm({ classes, eleves, matieres, onSave }: {
       </div>
 
       {/* Tableau de saisie */}
-      <div style={{border:"1px solid #e5e7eb", borderRadius:12, overflow:"hidden", marginBottom:16}}>
-        <table style={{width:"100%", borderCollapse:"collapse", fontSize:14}}>
+      <div style={{border:"1px solid #e5e7eb", borderRadius:12, overflow:"auto", marginBottom:16}}>
+        <table style={{width:"100%", borderCollapse:"collapse", fontSize:14, minWidth:420}}>
           <thead>
             <tr style={{background:"#1a1a2e", color:"#fff"}}>
               <th style={{...S.th, color:"#fff", background:"transparent", width:40}}>#</th>
